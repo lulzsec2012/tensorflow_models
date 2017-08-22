@@ -24,9 +24,26 @@ from datasets import dataset_factory
 from deployment import model_deploy
 from nets import nets_factory
 from preprocessing import preprocessing_factory
+from tensorflow.python.training.optimizer import _get_processor as get  
+from tensorflow.python.framework import ops
+from tensorflow.python.ops import variables
+
 
 slim = tf.contrib.slim
 
+###add by lzlu
+import numpy as np
+tf.app.flags.DEFINE_string(
+    'pruning_scopes', None,
+    'Comma-separated list of pruning scope.'
+    'By default, None would prunned.')
+tf.app.flags.DEFINE_string(
+    'pruning_rates_of_trainable_scopes', None,
+    'Comma-separated list of pruning rates used to prun each trainable scope.'
+    'By default, The default pruning rate is 1.0.')
+tf.app.flags.DEFINE_string(
+    'pruning_strategy', 'ABS', 'The name of the strategy used to prun.')
+###
 tf.app.flags.DEFINE_string(
     'master', '', 'The address of the TensorFlow master to use.')
 
@@ -60,11 +77,11 @@ tf.app.flags.DEFINE_integer(
     'The frequency with which logs are print.')
 
 tf.app.flags.DEFINE_integer(
-    'save_summaries_secs', 600,
+    'save_summaries_secs', 50,
     'The frequency with which summaries are saved, in seconds.')
 
 tf.app.flags.DEFINE_integer(
-    'save_interval_secs', 600,
+    'save_interval_secs', 50,
     'The frequency with which the model is saved, in seconds.')
 
 tf.app.flags.DEFINE_integer(
@@ -145,8 +162,8 @@ tf.app.flags.DEFINE_float(
     'num_epochs_per_decay', 2.0,
     'Number of epochs after which learning rate decays.')
 
-tf.app.flags.DEFINE_bool(
-    'sync_replicas', False,
+tf.app.flags.DEFINE_bool( 
+    'sync_replicas', False, 
     'Whether or not to synchronize the replicas during training.')
 
 tf.app.flags.DEFINE_integer(
@@ -351,7 +368,6 @@ def _get_init_fn():
     checkpoint_path = FLAGS.checkpoint_path
 
   tf.logging.info('Fine-tuning from %s' % checkpoint_path)
-
   return slim.assign_from_checkpoint_fn(
       checkpoint_path,
       variables_to_restore,
@@ -374,9 +390,205 @@ def _get_variables_to_train():
     variables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope)
     variables_to_train.extend(variables)
   return variables_to_train
+###add by lzlu
+def apply_pruning_to_grad(clones_gradients,pruningMask):
+  """
+  clones_gradients: [(<tf.Tensor 'gradients/AddN:0' shape=(1, 1, 4096, 5) dtype=float32>, <tf.Variable 'vgg_16/fc8/weights:0' shape=(1, 1, 4096, 5) dtype=float32_ref>), (<tf.Tensor 'gradients/vgg_16/fc8/BiasAdd_grad/tuple/control_dependency_1:0' shape=(5,) dtype=float32>, <tf.Variable 'vgg_16/fc8/biases:0' shape=(5,) dtype=float32_ref>), (<tf.Tensor 'gradients/AddN_1:0' shape=(1, 1, 4096, 4096) dtype=float32>, <tf.Variable 'vgg_16/fc7/weights:0' shape=(1, 1, 4096, 4096) dtype=float32_ref>), (<tf.Tensor 'gradients/vgg_16/fc7/BiasAdd_grad/tuple/control_dependency_1:0' shape=(4096,) dtype=float32>, <tf.Variable 'vgg_16/fc7/biases:0' shape=(4096,) dtype=float32_ref>), (<tf.Tensor 'gradients/AddN_2:0' shape=(3, 3, 3, 64) dtype=float32>, <tf.Variable 'vgg_16/conv1/conv1_1/weights:0' shape=(3, 3, 3, 64) dtype=float32_ref>), (<tf.Tensor 'gradients/vgg_16/conv1/conv1_1/BiasAdd_grad/tuple/control_dependency_1:0' shape=(64,) dtype=float32>, <tf.Variable 'vgg_16/conv1/conv1_1/biases:0' shape=(64,) dtype=float32_ref>)]
+  """
+  ##print("######################apply_pruning_to_grad:###############################")
+  if pruningMask is None:
+    return clones_gradients
+  for mask_name,mask in pruningMask:
+    count = 0
+    assign_ops=[]
+    for grad,var in clones_gradients:
+      if var.name == mask_name:
+        ##print("grad:",grad.name)
+        ##print("var:",var.name)
+        ##print("mask_name:",mask_name)
+        ##print("mask:",mask)
+        ##print("")
+        mask_obj = tf.cast(mask,tf.float32)
+        grad_m=tf.multiply(grad,mask_obj)
+        clones_gradients[count]=(grad_m, var)
+      count += 1
+  return clones_gradients
 
+
+def get_pruning_mask(variables_to_pruning):
+  """
+  get pruning mask 
+  My_variables_to_pruning: [<tf.Variable 'vgg_16/conv1/conv1_1/weights:0' shape=(3, 3, 3, 64) dtype=float32_ref>, <tf.Variable 'vgg_16/conv1/conv1_1/biases:0' shape=(64,) dtype=float32_ref>, <tf.Variable 'vgg_16/fc7/weights:0' shape=(1, 1, 4096, 4096) dtype=float32_ref>, <tf.Variable 'vgg_16/fc7/biases:0' shape=(4096,) dtype=float32_ref>]
+  
+  Return :
+  return mask
+  """    
+  ##print("######################get_pruning_mask:###############################")
+  if variables_to_pruning is None:
+    return None
+  mask=[]
+  for W_B,rate in variables_to_pruning:
+    #print("var.name:",var.name) 
+    ##print("rate:",rate) 
+    var=W_B[0]
+    shape=var.shape
+    #print("shape=var.shape:",shape) 
+    ##var_reshape=tf.reshape(var,[-1,shape[-1].value])
+    #print("shape[-1].value:",shape[-1].value)
+    #print("var_reshape:",var_reshape)
+    ##var_transpose=tf.transpose(var_reshape)
+    #print("var_transpose:",var_transpose)
+    var_abs=tf.abs(var)
+    var_vec=tf.reshape(var_abs,[-1])
+    ##print("var:",var)
+    ##print("var_vec:",var_vec)
+    length=var_vec.shape[0].value
+    ##print("length:",length)
+    top_k=tf.nn.top_k(var_vec,k=tf.cast(length*float(rate),tf.int32))
+    ##print("top_k:",top_k)
+    thread=tf.reduce_min(top_k[0])
+    ##print("thread:",thread)
+    thread_vec=tf.fill([length],thread)
+    #thread_vec=tf.fill([length],tf.constant(100.0))
+    ##print("thread_vec:",thread_vec)
+    mask_vec=var_vec>thread_vec
+    ##print("mask_vec:",mask_vec)
+    mask.append((var.name,tf.reshape(mask_vec,shape)))
+
+    bias=W_B[1]
+    mask.append((bias.name,tf.fill(bias.shape,0)))
+  return mask
+
+
+def apply_pruning_to_var(variables_to_pruning,sess):
+  """
+  apply_pruning_to_var
+
+  """    
+  ##print("######################apply_pruning_to_var:###############################")
+  if variables_to_pruning is None:
+    return None
+  pruningMask=[]
+  for W_B,rate in variables_to_pruning:
+    var=W_B[0]
+    shape=var.shape
+    print("var.name:",var.name) 
+    print("rate=",float(rate))
+    var_arr=sess.run(var)
+    print("FLAGS.pruning_strategy:",FLAGS.pruning_strategy)
+    if FLAGS.pruning_strategy == "ABS":
+      abs_var_arr=abs(var_arr)
+      sort_abs_var_arr=np.sort(abs_var_arr,axis=None)
+      ##int("sort_abs_var_arr.size=",sort_abs_var_arr.size)
+      index=int(sort_abs_var_arr.size*(1-float(rate)))-1
+      print("sort_abs_var_arr.size=",sort_abs_var_arr.size)
+      print("index=",index)
+      if index < 0:
+        index = 0
+      thread=sort_abs_var_arr[index]
+      print("thread=",thread)
+      mask_arr=abs_var_arr<thread
+      print("mask_arr=",mask_arr)
+    elif FLAGS.pruning_strategy == "AXIS_0" :
+      var_arr_reshape=var_arr.reshape([-1,var_arr.shape[-1]])
+      print("var_arr_reshape.shape=",var_arr_reshape.shape)
+      abs_var_arr=abs(var_arr_reshape)
+      sort_abs_var_arr=np.sort(abs_var_arr,axis=0)
+      ##int("sort_abs_var_arr.size=",sort_abs_var_arr.size)
+      index=int(len(abs_var_arr)*(1-float(rate)))-1
+      print("index=",index)
+
+      if index < 0:
+        index = 0
+      thread=np.zeros(abs_var_arr.shape)
+      for i in range(len(abs_var_arr)):
+        thread[i]=sort_abs_var_arr[index]
+      print("thread=",thread)
+      mask_arr_reshape=abs_var_arr<thread
+      mask_arr=mask_arr_reshape.reshape(var_arr.shape)
+      print("mask_arr=",mask_arr)
+    elif FLAGS.pruning_strategy == "AXIS_1" :
+      var_arr_reshape=var_arr.reshape([-1,var_arr.shape[-1]])
+      print("var_arr.shape=",var_arr.shape)
+      print("var_arr_reshape.shape=",var_arr_reshape.shape)
+      length=var_arr_reshape.shape[0]
+      var_arr_reshape_abs=abs(var_arr_reshape)
+      var_arr_reshape_abs_sort=np.sort(var_arr_reshape_abs,axis=0)
+      index=int(length*(1-float(rate)))-1
+      print("index=",index)
+      if index < 0:   
+        index = 0
+      thread_vec=var_arr_reshape_abs_sort[index]
+      print("thread_vec.shape=",thread_vec.shape)
+      thread_arr=np.tile(thread_vec,[var_arr_reshape_abs_sort.shape[0],1])
+      print("thread_arr.shape=",thread_arr.shape)
+      mask_arr=var_arr_reshape_abs<thread_arr
+      mask_arr=mask_arr.reshape(var_arr.shape)
+      print("mask_arr.shape=",mask_arr.shape)
+      print("mask_arr=",mask_arr)
+      print("var_arr.shape=",var_arr.shape)
+
+    var_arr[mask_arr] = 0
+    print("var_arr.shape=",var_arr.shape)
+    print("var_arr=",var_arr)
+    sess.run(var.assign(var_arr))
+    pruningMask.append((var.name,mask_arr))
+  return pruningMask
+
+
+def get_variables_to_pruning():
+  """Returns a list of variables to pruning.
+
+  Returns:
+    A list of variables to pruning.
+  """
+
+  if FLAGS.pruning_scopes is None:
+    return None
+  else:
+    scopes = [scope.strip() for scope in FLAGS.pruning_scopes.split(',')]
+  
+  if FLAGS.pruning_rates_of_trainable_scopes:
+    rates = [irate for irate in FLAGS.pruning_rates_of_trainable_scopes.split(',')]
+  
+  count=0
+  for scope in scopes:
+    if FLAGS.pruning_rates_of_trainable_scopes is None:
+      rate=0.2
+    else:
+      rate=rates[count]
+    scopes[count]=(scope,rate)
+    count+=1
+
+  exclusions = []
+  if FLAGS.checkpoint_exclude_scopes:
+    exclusions = [scope.strip()
+                  for scope in FLAGS.checkpoint_exclude_scopes.split(',')]
+  
+  variables_to_pruning = []
+  for scope,rate in scopes:
+    excluded = False
+    for exclusion in exclusions:
+      if scope == exclusion:
+        excluded = True
+        break
+
+    if not excluded:
+      variables = tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope)
+      variables_to_pruning.append((variables,rate))
+      
+  return variables_to_pruning
+
+###
 
 def main(_):
+  ###add for pruning
+  gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.8)#add by lzlu  
+  sessGPU = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))  
+  print("FLAGS.max_number_of_steps:",FLAGS.max_number_of_steps)
+  print("FLAGS.trainable_scopes:",FLAGS.trainable_scopes)
+  print("FLAGS.pruning_rates_of_trainable_scopes:",FLAGS.pruning_rates_of_trainable_scopes)
+  ###
   if not FLAGS.dataset_dir:
     raise ValueError('You must supply the dataset directory with --dataset_dir')
 
@@ -477,6 +689,7 @@ def main(_):
 
     # Add summaries for end_points.
     end_points = clones[0].outputs
+    print("end_points:",end_points)
     for end_point in end_points:
       x = end_points[end_point]
       summaries.add(tf.summary.histogram('activations/' + end_point, x))
@@ -531,12 +744,28 @@ def main(_):
         clones,
         optimizer,
         var_list=variables_to_train)
+
+    ###add by lzlu
+    variables = tf.model_variables()
+    slim.model_analyzer.analyze_vars(variables, print_info=True)    
+    ##print("variables_to_train:",variables_to_train)
+    print("clones_gradients_before_pruning:",clones_gradients)
+    variables_to_pruning=get_variables_to_pruning()
+    pruningMask=get_pruning_mask(variables_to_pruning)
+    ##print("pruningMask__grad:",pruningMask)
+    print("My_variables_to_pruning__grad:",variables_to_pruning)
+    clones_gradients=apply_pruning_to_grad(clones_gradients,pruningMask)
+    ##print("clones_gradients_after_pruning:",clones_gradients)
+    ##print("slim.get_model_variables():",slim.get_model_variables())
+    ###
+    
     # Add total_loss to summary.
     summaries.add(tf.summary.scalar('total_loss', total_loss))
 
     # Create gradient updates.
     grad_updates = optimizer.apply_gradients(clones_gradients,
                                              global_step=global_step)
+
     update_ops.append(grad_updates)
 
     update_op = tf.group(*update_ops)
@@ -551,6 +780,39 @@ def main(_):
     # Merge all summaries together.
     summary_op = tf.summary.merge(list(summaries), name='summary_op')
 
+    ### add for pruning
+    #######################
+    # Config mySaver      #
+    #######################
+    class mySaver(tf.train.Saver):
+      def restore(self,sess,save_path):
+        ##print("mySaver--restore...!")
+        tf.train.Saver.restore(self,sess,save_path)
+        variables_to_pruning=get_variables_to_pruning()
+        print("My_variables_to_pruning__restore:",variables_to_pruning)
+        pruningMask=apply_pruning_to_var(variables_to_pruning,sess)
+        ##print("mySaver--restore done!")
+      def save(self,
+               sess,
+               save_path,
+               global_step=None,
+               latest_filename=None,
+               meta_graph_suffix="meta",
+               write_meta_graph=True,
+               write_state=True):
+        ##print("My Saver--save...!")
+        tf.train.Saver.save(self,
+                            sess,
+                            save_path,
+                            global_step,
+                            latest_filename,
+                            meta_graph_suffix,
+                            write_meta_graph,
+                            write_state)
+        ##print("My Saver--save done!")
+
+    saver=mySaver()
+    ###
 
     ###########################
     # Kicks off the training. #
@@ -565,6 +827,7 @@ def main(_):
         number_of_steps=FLAGS.max_number_of_steps,
         log_every_n_steps=FLAGS.log_every_n_steps,
         save_summaries_secs=FLAGS.save_summaries_secs,
+        saver=saver, #add for pruning
         save_interval_secs=FLAGS.save_interval_secs,
         sync_optimizer=optimizer if FLAGS.sync_replicas else None)
 
