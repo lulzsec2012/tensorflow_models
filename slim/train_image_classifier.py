@@ -42,7 +42,7 @@ tf.app.flags.DEFINE_string(
     'Comma-separated list of pruning rates used to prun each trainable scope.'
     'By default, The default pruning rate is 1.0.')
 tf.app.flags.DEFINE_string(
-    'pruning_strategy', 'ABS', 'The name of the strategy used to prun.')
+    'pruning_strategy', 'AUTO', 'The name of the strategy used to prun.')
 ###
 tf.app.flags.DEFINE_string(
     'master', '', 'The address of the TensorFlow master to use.')
@@ -81,7 +81,7 @@ tf.app.flags.DEFINE_integer(
     'The frequency with which summaries are saved, in seconds.')
 
 tf.app.flags.DEFINE_integer(
-    'save_interval_secs', 50,
+    'save_interval_secs', 600,
     'The frequency with which the model is saved, in seconds.')
 
 tf.app.flags.DEFINE_integer(
@@ -391,7 +391,7 @@ def _get_variables_to_train():
     variables_to_train.extend(variables)
   return variables_to_train
 ###add by lzlu
-def apply_pruning_to_grad(clones_gradients,pruningMask):
+def apply_pruning_to_grad_bak(clones_gradients,pruningMask):
   """
   clones_gradients: [(<tf.Tensor 'gradients/AddN:0' shape=(1, 1, 4096, 5) dtype=float32>, <tf.Variable 'vgg_16/fc8/weights:0' shape=(1, 1, 4096, 5) dtype=float32_ref>), (<tf.Tensor 'gradients/vgg_16/fc8/BiasAdd_grad/tuple/control_dependency_1:0' shape=(5,) dtype=float32>, <tf.Variable 'vgg_16/fc8/biases:0' shape=(5,) dtype=float32_ref>), (<tf.Tensor 'gradients/AddN_1:0' shape=(1, 1, 4096, 4096) dtype=float32>, <tf.Variable 'vgg_16/fc7/weights:0' shape=(1, 1, 4096, 4096) dtype=float32_ref>), (<tf.Tensor 'gradients/vgg_16/fc7/BiasAdd_grad/tuple/control_dependency_1:0' shape=(4096,) dtype=float32>, <tf.Variable 'vgg_16/fc7/biases:0' shape=(4096,) dtype=float32_ref>), (<tf.Tensor 'gradients/AddN_2:0' shape=(3, 3, 3, 64) dtype=float32>, <tf.Variable 'vgg_16/conv1/conv1_1/weights:0' shape=(3, 3, 3, 64) dtype=float32_ref>), (<tf.Tensor 'gradients/vgg_16/conv1/conv1_1/BiasAdd_grad/tuple/control_dependency_1:0' shape=(64,) dtype=float32>, <tf.Variable 'vgg_16/conv1/conv1_1/biases:0' shape=(64,) dtype=float32_ref>)]
   """
@@ -405,6 +405,31 @@ def apply_pruning_to_grad(clones_gradients,pruningMask):
       if var.name == mask_name:
         ##print("grad:",grad.name)
         ##print("var:",var.name)
+        ##print("mask_name:",mask_name)
+        ##print("mask:",mask)
+        ##print("")
+        mask_obj = tf.cast(mask,tf.float32)
+        grad_m=tf.multiply(grad,mask_obj)
+        clones_gradients[count]=(grad_m, var)
+      count += 1
+  return clones_gradients
+
+def apply_pruning_to_grad(clones_gradients,pruningMask):
+  """
+  clones_gradients: [(<tf.Tensor 'gradients/AddN:0' shape=(1, 1, 4096, 5) dtype=float32>, <tf.Variable 'vgg_16/fc8/weights:0' shape=(1, 1, 4096, 5) dtype=float32_ref>), (<tf.Tensor 'gradients/vgg_16/fc8/BiasAdd_grad/tuple/control_dependency_1:0' shape=(5,) dtype=float32>, <tf.Variable 'vgg_16/fc8/biases:0' shape=(5,) dtype=float32_ref>), (<tf.Tensor 'gradients/AddN_1:0' shape=(1, 1, 4096, 4096) dtype=float32>, <tf.Variable 'vgg_16/fc7/weights:0' shape=(1, 1, 4096, 4096) dtype=float32_ref>), (<tf.Tensor 'gradients/vgg_16/fc7/BiasAdd_grad/tuple/control_dependency_1:0' shape=(4096,) dtype=float32>, <tf.Variable 'vgg_16/fc7/biases:0' shape=(4096,) dtype=float32_ref>), (<tf.Tensor 'gradients/AddN_2:0' shape=(3, 3, 3, 64) dtype=float32>, <tf.Variable 'vgg_16/conv1/conv1_1/weights:0' shape=(3, 3, 3, 64) dtype=float32_ref>), (<tf.Tensor 'gradients/vgg_16/conv1/conv1_1/BiasAdd_grad/tuple/control_dependency_1:0' shape=(64,) dtype=float32>, <tf.Variable 'vgg_16/conv1/conv1_1/biases:0' shape=(64,) dtype=float32_ref>)]
+  """
+  ##print("######################apply_pruning_to_grad:###############################")
+  if pruningMask is None:
+    return clones_gradients
+  for mask_name,mask in pruningMask:
+    count = 0
+    assign_ops=[]
+    for grad,var in clones_gradients:
+      if var.name == mask_name:
+        print("grad.name:",grad.name)
+        print("var.name:",var.name)
+        print("grad.op.name:",grad.op.name)
+        print("var.op.name:",var.op.name)
         ##print("mask_name:",mask_name)
         ##print("mask:",mask)
         ##print("")
@@ -428,10 +453,10 @@ def get_pruning_mask(variables_to_pruning):
     return None
   mask=[]
   for W_B,rate in variables_to_pruning:
-    #print("var.name:",var.name) 
-    ##print("rate:",rate) 
     var=W_B[0]
     shape=var.shape
+    print("get_pruning_mask--var.name:",var.name) 
+    print("get_pruning_mask--rate:",rate) 
     #print("shape=var.shape:",shape) 
     ##var_reshape=tf.reshape(var,[-1,shape[-1].value])
     #print("shape[-1].value:",shape[-1].value)
@@ -443,16 +468,16 @@ def get_pruning_mask(variables_to_pruning):
     ##print("var:",var)
     ##print("var_vec:",var_vec)
     length=var_vec.shape[0].value
-    ##print("length:",length)
+    print("get_pruning_mask--length:",length)
     top_k=tf.nn.top_k(var_vec,k=tf.cast(length*float(rate),tf.int32))
-    ##print("top_k:",top_k)
+    print("get_pruning_mask--top_k:",top_k)
     thread=tf.reduce_min(top_k[0])
-    ##print("thread:",thread)
+    print("get_pruning_mask--thread:",thread)
     thread_vec=tf.fill([length],thread)
     #thread_vec=tf.fill([length],tf.constant(100.0))
-    ##print("thread_vec:",thread_vec)
+    print("get_pruning_mask--thread_vec.shape:",thread_vec.shape)
     mask_vec=var_vec>thread_vec
-    ##print("mask_vec:",mask_vec)
+    print("get_pruning_mask--mask_vec:",mask_vec)
     mask.append((var.name,tf.reshape(mask_vec,shape)))
 
     bias=W_B[1]
@@ -476,12 +501,12 @@ def apply_pruning_to_var(variables_to_pruning,sess):
     print("rate=",float(rate))
     var_arr=sess.run(var)
     print("FLAGS.pruning_strategy:",FLAGS.pruning_strategy)
+    print("var_arr_before_pruning:",var_arr)
     if FLAGS.pruning_strategy == "ABS":
       abs_var_arr=abs(var_arr)
       sort_abs_var_arr=np.sort(abs_var_arr,axis=None)
       ##int("sort_abs_var_arr.size=",sort_abs_var_arr.size)
       index=int(sort_abs_var_arr.size*(1-float(rate)))-1
-      print("sort_abs_var_arr.size=",sort_abs_var_arr.size)
       print("index=",index)
       if index < 0:
         index = 0
@@ -490,47 +515,42 @@ def apply_pruning_to_var(variables_to_pruning,sess):
       mask_arr=abs_var_arr<thread
       print("mask_arr=",mask_arr)
     elif FLAGS.pruning_strategy == "AXIS_0" :
-      var_arr_reshape=var_arr.reshape([-1,var_arr.shape[-1]])
-      print("var_arr_reshape.shape=",var_arr_reshape.shape)
-      abs_var_arr=abs(var_arr_reshape)
+      abs_var_arr=abs(var_arr)
       sort_abs_var_arr=np.sort(abs_var_arr,axis=0)
       ##int("sort_abs_var_arr.size=",sort_abs_var_arr.size)
-      index=int(len(abs_var_arr)*(1-float(rate)))-1
+      index=int(len(var_arr)*(1-float(rate)))-1
       print("index=",index)
-
       if index < 0:
         index = 0
-      thread=np.zeros(abs_var_arr.shape)
-      for i in range(len(abs_var_arr)):
+      thread=np.zeros(var_arr.shape)
+      for i in range(len(var_arr)):
         thread[i]=sort_abs_var_arr[index]
       print("thread=",thread)
-      mask_arr_reshape=abs_var_arr<thread
-      mask_arr=mask_arr_reshape.reshape(var_arr.shape)
+      mask_arr=abs_var_arr<thread
       print("mask_arr=",mask_arr)
-    elif FLAGS.pruning_strategy == "AXIS_1" :
+    elif FLAGS.pruning_strategy == "AUTO" :
       var_arr_reshape=var_arr.reshape([-1,var_arr.shape[-1]])
-      print("var_arr.shape=",var_arr.shape)
-      print("var_arr_reshape.shape=",var_arr_reshape.shape)
-      length=var_arr_reshape.shape[0]
       var_arr_reshape_abs=abs(var_arr_reshape)
       var_arr_reshape_abs_sort=np.sort(var_arr_reshape_abs,axis=0)
+      length=len(var_arr_reshape_abs_sort)
       index=int(length*(1-float(rate)))-1
+      print("length=",length)
       print("index=",index)
-      if index < 0:   
+      if index < 0:
         index = 0
       thread_vec=var_arr_reshape_abs_sort[index]
+      thread_arr=np.tile(thread_vec,[length,1])
       print("thread_vec.shape=",thread_vec.shape)
-      thread_arr=np.tile(thread_vec,[var_arr_reshape_abs_sort.shape[0],1])
-      print("thread_arr.shape=",thread_arr.shape)
+      print("thread_arr=",thread_arr)
       mask_arr=var_arr_reshape_abs<thread_arr
       mask_arr=mask_arr.reshape(var_arr.shape)
-      print("mask_arr.shape=",mask_arr.shape)
       print("mask_arr=",mask_arr)
-      print("var_arr.shape=",var_arr.shape)
+      
+
 
     var_arr[mask_arr] = 0
     print("var_arr.shape=",var_arr.shape)
-    print("var_arr=",var_arr)
+    print("var_arr_after_pruning:",var_arr)
     sess.run(var.assign(var_arr))
     pruningMask.append((var.name,mask_arr))
   return pruningMask
@@ -689,7 +709,6 @@ def main(_):
 
     # Add summaries for end_points.
     end_points = clones[0].outputs
-    print("end_points:",end_points)
     for end_point in end_points:
       x = end_points[end_point]
       summaries.add(tf.summary.histogram('activations/' + end_point, x))
@@ -703,6 +722,9 @@ def main(_):
     # Add summaries for variables.
     for variable in slim.get_model_variables():
       summaries.add(tf.summary.histogram(variable.op.name, variable))
+      ##add for pruning
+      summaries.add(tf.summary.scalar('pruning_rate/' + variable.op.name,
+                                      tf.nn.zero_fraction(variable)))
 
     #################################
     # Configure the moving averages #
@@ -749,11 +771,11 @@ def main(_):
     variables = tf.model_variables()
     slim.model_analyzer.analyze_vars(variables, print_info=True)    
     ##print("variables_to_train:",variables_to_train)
-    print("clones_gradients_before_pruning:",clones_gradients)
+    ##print("clones_gradients_before_pruning:",clones_gradients)
     variables_to_pruning=get_variables_to_pruning()
     pruningMask=get_pruning_mask(variables_to_pruning)
     ##print("pruningMask__grad:",pruningMask)
-    print("My_variables_to_pruning__grad:",variables_to_pruning)
+    ##print("My_variables_to_pruning__grad:",variables_to_pruning)
     clones_gradients=apply_pruning_to_grad(clones_gradients,pruningMask)
     ##print("clones_gradients_after_pruning:",clones_gradients)
     ##print("slim.get_model_variables():",slim.get_model_variables())
@@ -834,3 +856,4 @@ def main(_):
 
 if __name__ == '__main__':
   tf.app.run()
+
