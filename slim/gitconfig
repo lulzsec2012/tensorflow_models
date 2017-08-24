@@ -1,0 +1,9 @@
+[user]
+	email = rock.lzlu@ingenic.com
+	name = lzlu
+
+[alias]
+        st = status
+        ci = commit
+        co = checkout
+        br = branch
