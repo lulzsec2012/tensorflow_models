@@ -43,6 +43,9 @@ tf.app.flags.DEFINE_string(
     'By default, The default pruning rate is 1.0.')
 tf.app.flags.DEFINE_string(
     'pruning_strategy', 'AUTO', 'The name of the strategy used to prun.')
+tf.app.flags.DEFINE_integer(
+    'pruning_gradient_update_ratio', 0,
+    'The update ratio of the pruned gradients. 0 for pruning,!=1 for DSD.')
 ###
 tf.app.flags.DEFINE_string(
     'master', '', 'The address of the TensorFlow master to use.')
@@ -77,7 +80,7 @@ tf.app.flags.DEFINE_integer(
     'The frequency with which logs are print.')
 
 tf.app.flags.DEFINE_integer(
-    'save_summaries_secs', 50,
+    'save_summaries_secs', 600,
     'The frequency with which summaries are saved, in seconds.')
 
 tf.app.flags.DEFINE_integer(
@@ -403,8 +406,10 @@ def apply_pruning_to_grad_bak(clones_gradients,pruningMask):
     assign_ops=[]
     for grad,var in clones_gradients:
       if var.name == mask_name:
-        ##print("grad:",grad.name)
-        ##print("var:",var.name)
+        print("grad.name:",grad.name)
+        print("var.name:",var.name)
+        print("grad.op.name:",grad.op.name)
+        print("var.op.name:",var.op.name)
         ##print("mask_name:",mask_name)
         ##print("mask:",mask)
         ##print("")
@@ -434,6 +439,13 @@ def apply_pruning_to_grad(clones_gradients,pruningMask):
         ##print("mask:",mask)
         ##print("")
         mask_obj = tf.cast(mask,tf.float32)
+        ###
+        print("mask_obj:",mask_obj)
+        mask_DSD=FLAGS.pruning_gradient_update_ratio*(1-mask_obj)
+        print("mask_DSD:",mask_DSD)
+        mask_obj=tf.add(mask_obj,mask_DSD)
+        print("mask_obj+mask_DSD:",mask_obj)
+        ###
         grad_m=tf.multiply(grad,mask_obj)
         clones_gradients[count]=(grad_m, var)
       count += 1
@@ -455,29 +467,16 @@ def get_pruning_mask(variables_to_pruning):
   for W_B,rate in variables_to_pruning:
     var=W_B[0]
     shape=var.shape
-    print("get_pruning_mask--var.name:",var.name) 
-    print("get_pruning_mask--rate:",rate) 
-    #print("shape=var.shape:",shape) 
-    ##var_reshape=tf.reshape(var,[-1,shape[-1].value])
-    #print("shape[-1].value:",shape[-1].value)
-    #print("var_reshape:",var_reshape)
-    ##var_transpose=tf.transpose(var_reshape)
-    #print("var_transpose:",var_transpose)
+    ##print("get_pruning_mask--var.name:",var.name) 
+    ##print("get_pruning_mask--rate:",rate) 
     var_abs=tf.abs(var)
     var_vec=tf.reshape(var_abs,[-1])
-    ##print("var:",var)
-    ##print("var_vec:",var_vec)
     length=var_vec.shape[0].value
-    print("get_pruning_mask--length:",length)
     top_k=tf.nn.top_k(var_vec,k=tf.cast(length*float(rate),tf.int32))
-    print("get_pruning_mask--top_k:",top_k)
     thread=tf.reduce_min(top_k[0])
-    print("get_pruning_mask--thread:",thread)
     thread_vec=tf.fill([length],thread)
-    #thread_vec=tf.fill([length],tf.constant(100.0))
-    print("get_pruning_mask--thread_vec.shape:",thread_vec.shape)
     mask_vec=var_vec>thread_vec
-    print("get_pruning_mask--mask_vec:",mask_vec)
+    ##print("get_pruning_mask--mask_vec:",mask_vec)
     mask.append((var.name,tf.reshape(mask_vec,shape)))
 
     bias=W_B[1]
@@ -603,7 +602,7 @@ def get_variables_to_pruning():
 
 def main(_):
   ###add for pruning
-  gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.8)#add by lzlu  
+  gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=1.0)#add by lzlu  
   sessGPU = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))  
   print("FLAGS.max_number_of_steps:",FLAGS.max_number_of_steps)
   print("FLAGS.trainable_scopes:",FLAGS.trainable_scopes)

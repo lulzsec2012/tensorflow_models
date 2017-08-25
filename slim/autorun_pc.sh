@@ -6,8 +6,10 @@ trap "kill 0" INT
 #####################################################
 DATASET_DIR=/mllib/ImageNet/ILSVRC2012_tensorflow
 DATASET_NAME=imagenet
-TRAIN_DIR_PREFIX=./train_dir
-
+TRAIN_DIR_PREFIX=./train_dir_ACE
+EVAL_INTERVAL=500
+SAVE_SUMMARIES_SECS=500
+DEFAULT_MAX_NUMBER_OF_STEPS=5000
 
 #####################################################
 #           Pruning and Retrain Config
@@ -15,25 +17,24 @@ TRAIN_DIR_PREFIX=./train_dir
 MODEL_NAME=vgg_16
 LABELS_OFFSET=1 #vgg resnet 1000+1 (1 for background)
 checkpoint_path=./VGG_16_RETRAIN_FOR_CONVERGENCE_SGD_20000/model.ckpt-20000
-DEFAULT_MAX_NUMBER_OF_STEPS=120
 #layer_name pruning_rate max_number_of_steps
 configs=(
-    "vgg_16/fc8           0.23 $DEFAULT_MAX_NUMBER_OF_STEPS 20480"
-    "vgg_16/fc7           0.04 $DEFAULT_MAX_NUMBER_OF_STEPS 16777216"
-    "vgg_16/fc6           0.04 $DEFAULT_MAX_NUMBER_OF_STEPS 102760448"
-    "vgg_16/conv5/conv5_3 0.36 $DEFAULT_MAX_NUMBER_OF_STEPS 2359296"
-    "vgg_16/conv5/conv5_2 0.29 $DEFAULT_MAX_NUMBER_OF_STEPS 2359296"
-    "vgg_16/conv5/conv5_1 0.35 $DEFAULT_MAX_NUMBER_OF_STEPS 2359296"
-    "vgg_16/conv4/conv4_3 0.34 $DEFAULT_MAX_NUMBER_OF_STEPS 2359296"
-    "vgg_16/conv4/conv4_2 0.27 $DEFAULT_MAX_NUMBER_OF_STEPS 2359296"
-    "vgg_16/conv4/conv4_1 0.32 $DEFAULT_MAX_NUMBER_OF_STEPS 1179648"
-    "vgg_16/conv3/conv3_3 0.42 $DEFAULT_MAX_NUMBER_OF_STEPS 589824"
-    "vgg_16/conv3/conv3_2 0.24 $DEFAULT_MAX_NUMBER_OF_STEPS 589824"
-    "vgg_16/conv3/conv3_1 0.53 $DEFAULT_MAX_NUMBER_OF_STEPS 294912"
-    "vgg_16/conv2/conv2_2 0.36 $DEFAULT_MAX_NUMBER_OF_STEPS 147456"
-    "vgg_16/conv2/conv2_1 0.34 $DEFAULT_MAX_NUMBER_OF_STEPS 73728"
-    "vgg_16/conv1/conv1_2 0.22 $DEFAULT_MAX_NUMBER_OF_STEPS 36864"
-    "vgg_16/conv1/conv1_1 0.58 $DEFAULT_MAX_NUMBER_OF_STEPS 1728"
+"vgg_16/conv1/conv1_1 0.58 $DEFAULT_MAX_NUMBER_OF_STEPS 1728"
+"vgg_16/conv1/conv1_2 0.22 $DEFAULT_MAX_NUMBER_OF_STEPS 36864"
+"vgg_16/conv2/conv2_1 0.34 $DEFAULT_MAX_NUMBER_OF_STEPS 73728"
+"vgg_16/conv2/conv2_2 0.36 $DEFAULT_MAX_NUMBER_OF_STEPS 147456"
+"vgg_16/conv3/conv3_1 0.53 $DEFAULT_MAX_NUMBER_OF_STEPS 294912"
+"vgg_16/conv3/conv3_2 0.24 $DEFAULT_MAX_NUMBER_OF_STEPS 589824"
+"vgg_16/conv3/conv3_3 0.42 $DEFAULT_MAX_NUMBER_OF_STEPS 589824"
+"vgg_16/conv4/conv4_1 0.32 $DEFAULT_MAX_NUMBER_OF_STEPS 1179648"
+"vgg_16/conv4/conv4_2 0.27 $DEFAULT_MAX_NUMBER_OF_STEPS 2359296"
+"vgg_16/conv4/conv4_3 0.34 $DEFAULT_MAX_NUMBER_OF_STEPS 2359296"
+"vgg_16/conv5/conv5_1 0.35 $DEFAULT_MAX_NUMBER_OF_STEPS 2359296"
+"vgg_16/conv5/conv5_2 0.29 $DEFAULT_MAX_NUMBER_OF_STEPS 2359296"
+"vgg_16/conv5/conv5_3 0.36 $DEFAULT_MAX_NUMBER_OF_STEPS 2359296"
+"vgg_16/fc6           0.10 $DEFAULT_MAX_NUMBER_OF_STEPS 102760448"
+"vgg_16/fc7           0.10 $DEFAULT_MAX_NUMBER_OF_STEPS 16777216"
+"vgg_16/fc8           0.23 $DEFAULT_MAX_NUMBER_OF_STEPS 20480"
 ) 
 Total_size_of_variables=134281029
 
@@ -48,11 +49,11 @@ echo "checkpoint_exclude_scopes:"$checkpoint_exclude_scopes
 #*Algorithm:Select_Pruning_Layers*#
 #[...,bottom2,bottom1,currentLayer,top1,top2,...]
 #PRUNING_LAYERS_BOTTOM=PRUNING_LAYERS_TOP=0 means pruning current layer only.
-PRUNING_LAYERS_BOTTOM=0
+PRUNING_LAYERS_BOTTOM=2
 PRUNING_LAYERS_TOP=0
 
 #*Algorithm:REPRUNING_FROM_SPECIFIC_LAYER*#
-En_REPRUNING_FROM_SPECIFIC_LAYER="Enable" #["Enable":"Disable"]
+En_REPRUNING_FROM_SPECIFIC_LAYER="Disable" #["Enable":"Disable"]
 REPRUNING_FROM_LAYER_TH=0
 
 #*Algorithm:AUTO_DRAW_BACK_WHILE_PRUNING*#
@@ -83,7 +84,7 @@ function get_multilayer_scopes()
     for((iter=$row-$PRUNING_LAYERS_BOTTOM;iter<=$row+$PRUNING_LAYERS_TOP;iter++))
     do
 	iter_scope=`parse_configs $iter $col`
-	if [  $iter -ne -1  -a  -n "$iter_scope" ]
+	if [  $iter -ge 0  -a  -n "$iter_scope" ]
 	then
 	    comma_scopes="$comma_scopes,$iter_scope"
 	fi
@@ -138,7 +139,6 @@ function eval_image_classifier()
     echo "tmp_checkpoint_path="$tmp_checkpoint_path
     python eval_image_classifier.py --alsologtostderr --checkpoint_path=${tmp_checkpoint_path} --dataset_dir=${DATASET_DIR} --dataset_name=$DATASET_NAME --dataset_split_name=validation \
 	--model_name=$MODEL_NAME --eval_dir ${train_dir} --labels_offset=$LABELS_OFFSET --max_num_batches=50 2>&1 | grep logging
-#DATASET_DIR=/home/lzlu/work/tensorflow_models/inception/inception/data/train_directory ; CHECKPOINT_FILE=/tmp/flowers-models/inception_v3/model.ckpt-2689 ; python eval_image_classifier.py --alsologtostderr --checkpoint_path=${CHECKPOINT_FILE} --eval_dir eval_dir --dataset_dir=${DATASET_DIR} --dataset_name=imagenet --dataset_split_name=validation --model_name=vgg_16 --max_num_batches=50
 }
 
 function get_Accuracy()
@@ -161,6 +161,45 @@ function get_Recall_5()
 #    Accuracy=`get_Accuracy $result_str` ; Recall_5=`get_Recall_5 $result_str`
 #    echo "Accuracy =" $Accuracy "Recall_5 =" $Recall_5
 #####################################################
+
+function pruning_and_retrain_step_eval()
+{
+    #global DATASET_DIR MODEL_NAME
+    max_number_of_steps=`echo -n "$*" | awk -F "max_number_of_steps=" '{print $NF}' | awk -F " " '{print $1}'`
+    train_dir=`echo -n "$*" | awk -F "train_dir=" '{print $NF}' | awk -F " " '{print $1}'`
+
+    if [ -z $max_number_of_steps ]
+    then
+	max_number_of_steps=20
+    fi
+    if [ -f $train_dir/checkpoint ]
+    then
+	cur_step=`cat $train_dir/checkpoint | grep -v "all_model_checkpoint_paths" | awk -F "-|\"" '{print $3}'`
+	if [  $cur_step -ge $max_number_of_steps ]
+	then
+	    return 
+	fi
+    fi
+    for((consum_number_of_steps=10;consum_number_of_steps<=$max_number_of_steps;consum_number_of_steps+=$EVAL_INTERVAL))
+    do
+	echo "eval command:" $@
+	echo "max_number_of_steps:" $consum_number_of_steps
+	python train_image_classifier.py --noclone_on_cpu --optimizer sgd --labels_offset=$LABELS_OFFSET --dataset_dir=${DATASET_DIR} --dataset_name=$DATASET_NAME --dataset_split_name=train --model_name=$MODEL_NAME $@ \
+	    --save_summaries_secs=$SAVE_SUMMARIES_SECS \
+	    --max_number_of_steps=$consum_number_of_steps 
+
+	if [ $consum_number_of_steps -eq 10 ]
+	then
+	    consum_number_of_steps=0
+	else
+	    local result_str=`eval_image_classifier $train_dir`
+	    local Accuracy=`get_Accuracy $result_str`
+	    local Recall_5=`get_Recall_5 $result_str`
+	    echo "Accuracy="$Accuracy
+	    echo "Recall_5="$Recall_5
+	fi
+    done
+}
 
 function auto_rate_pruning()
 {
@@ -232,22 +271,22 @@ function auto_rate_pruning()
 #(A)Retrain for ImageNet 
 train_dir=$TRAIN_DIR_PREFIX/$MODEL_NAME/Retrain_for_ImageNet
 print_info "A"
-pruning_and_retrain_step --checkpoint_path=${checkpoint_path}  --train_dir=${train_dir} \
-    --learning_rate=0.00001  --weight_decay=0.00005 --batch_size=64 --max_number_of_steps=600 
-    #--checkpoint_exclude_scopes=$checkpoint_exclude_scopes --trainable_scopes=$checkpoint_exclude_scopes \
+pruning_and_retrain_step_eval --checkpoint_path=${checkpoint_path}  --train_dir=${train_dir} \
+    --learning_rate=0.00001  --weight_decay=0.00005 --batch_size=64 --max_number_of_steps=100
+    #####--checkpoint_exclude_scopes=$checkpoint_exclude_scopes --trainable_scopes=$checkpoint_exclude_scopes \
 checkpoint_path=`next_CHECKPOINT_PATH $train_dir`
 
 #Calculate and Print Eval Info
-result_str=`eval_image_classifier $train_dir`
-Accuracy=`get_Accuracy $result_str`
-Recall_5=`get_Recall_5 $result_str`
-preAccuracy=$Accuracy
-echo "checkpoint_path =" $checkpoint_path
-echo "preAccuracy =" $preAccuracy
-echo "Recall_5 =" $Recall_5
+#result_str=`eval_image_classifier $train_dir`
+#Accuracy=`get_Accuracy $result_str`
+#Recall_5=`get_Recall_5 $result_str`
+#preAccuracy=$Accuracy
+#echo "checkpoint_path =" $checkpoint_path
+#echo "preAccuracy =" $preAccuracy
+#echo "Recall_5 =" $Recall_5
 
 #(B)Pruning without Retrain
-if [ "$En_AUTO_RATE_PRUNING_WITHOUT_RETRAIN" = "Enable" ]
+if [ "$En_AUTO_RATE_PRUNING_WITHOUT_RETRAIN" = "EnableX" ]
 then
     g_train_dir=$TRAIN_DIR_PREFIX/$MODEL_NAME/Pruning_without_Retrain
     pruning_rates_without_retrain=""
@@ -279,7 +318,7 @@ then
     pruning_rates_without_retrain=${pruning_rates_without_retrain#,} ## TODO:
     checkpoint_path=`next_CHECKPOINT_PATH $train_dir`
 fi
-exit 0
+
 #(C)Pruning and Retrain
 trainable_scopes_pyramid=""
 pruning_rates_of_trainable_scopes_pyramid=""
@@ -289,8 +328,14 @@ do
     layer_name=`echo $line | awk '{print $1}'`
     pruning_rate=`echo $line | awk '{print $2}'`
     max_number_of_steps=`echo $line | awk '{print $3}'`
-    trainable_scopes_pyramid="$trainable_scopes_pyramid,$layer_name"
-    pruning_rates_of_trainable_scopes_pyramid="$pruning_rates_of_trainable_scopes_pyramid,$pruning_rate"
+    if [ -z $trainable_scopes_pyramid ]
+    then
+	trainable_scopes_pyramid="$layer_name"
+	pruning_rates_of_trainable_scopes_pyramid="$pruning_rate"
+    else
+	trainable_scopes_pyramid="$trainable_scopes_pyramid,$layer_name"
+	pruning_rates_of_trainable_scopes_pyramid="$pruning_rates_of_trainable_scopes_pyramid,$pruning_rate"
+    fi
 
     #Pruning and Retrain
     train_dir=$TRAIN_DIR_PREFIX/$layer_name
@@ -304,22 +349,23 @@ do
     trainable_scopes=`get_multilayer_scopes $row 1`
     pruning_rates_of_trainable_scopes=`get_multilayer_scopes $row 2`
 
-    pruning_and_retrain_step --checkpoint_path=${checkpoint_path}  --train_dir=${train_dir} --max_number_of_steps=$max_number_of_steps \
-	--trainable_scopes=$trainable_scopes --pruning_scopes=$trainable_scopes --pruning_rates_of_trainable_scopes=$pruning_rates_of_trainable_scopes
-
+    pruning_and_retrain_step_eval --checkpoint_path=${checkpoint_path}  --train_dir=${train_dir} --max_number_of_steps=$max_number_of_steps \
+	--trainable_scopes=$trainable_scopes --pruning_scopes=$trainable_scopes --pruning_rates_of_trainable_scopes=$pruning_rates_of_trainable_scopes \
+	--learning_rate=0.00001  --weight_decay=0.00005 --batch_size=64 
+    
     checkpoint_path=`next_CHECKPOINT_PATH $train_dir`
 
     let "row+=1"
 done
-trainable_scopes_pyramid=${trainable_scopes_pyramid#,}
-pruning_rates_of_trainable_scopes_pyramid=${pruning_rates_of_trainable_scopes_pyramid#,}
+#trainable_scopes_pyramid=${trainable_scopes_pyramid#,}
+#pruning_rates_of_trainable_scopes_pyramid=${pruning_rates_of_trainable_scopes_pyramid#,}
 
 #[D]Exit for Manual Modification
-exit 0
+
 
 #(E)Retrain the Prunned Network
 train_dir=$TRAIN_DIR_PREFIX/$MODEL_NAME/Retrain_Prunned_Network
 print_info "E"
-pruning_and_retrain_step --checkpoint_path=${checkpoint_path}  --train_dir=${train_dir} \
-    --trainable_scopes=$trainable_scopes_pyramid --pruning_scopes=$trainable_scopes_pyramid --pruning_rates_of_trainable_scopes=$pruning_rates_of_trainable_scopes_pyramid --max_number_of_steps=100
+pruning_and_retrain_step_eval --checkpoint_path=${checkpoint_path}  --train_dir=${train_dir} \
+    --trainable_scopes=$trainable_scopes_pyramid --pruning_scopes=$trainable_scopes_pyramid --pruning_rates_of_trainable_scopes=$pruning_rates_of_trainable_scopes_pyramid --max_number_of_steps=10000
 checkpoint_path=""
