@@ -80,7 +80,7 @@ tf.app.flags.DEFINE_integer(
     'The frequency with which logs are print.')
 
 tf.app.flags.DEFINE_integer(
-    'save_summaries_secs', 600,
+    'save_summaries_secs', 60,
     'The frequency with which summaries are saved, in seconds.')
 
 tf.app.flags.DEFINE_integer(
@@ -605,6 +605,9 @@ def main(_):
   gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=1.0)#add by lzlu  
   sessGPU = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))  
   print("FLAGS.max_number_of_steps:",FLAGS.max_number_of_steps)
+  print("FLAGS.learning_rate:",FLAGS.learning_rate)
+  print("FLAGS.weight_decay:",FLAGS.weight_decay)
+  print("FLAGS.batch_size:",FLAGS.batch_size)
   print("FLAGS.trainable_scopes:",FLAGS.trainable_scopes)
   print("FLAGS.pruning_rates_of_trainable_scopes:",FLAGS.pruning_rates_of_trainable_scopes)
   ###
@@ -723,7 +726,7 @@ def main(_):
       summaries.add(tf.summary.histogram(variable.op.name, variable))
       ##add for pruning
       summaries.add(tf.summary.scalar('pruning_rate/' + variable.op.name,
-                                      tf.nn.zero_fraction(variable)))
+                                      1-tf.nn.zero_fraction(variable)))
 
     #################################
     # Configure the moving averages #
