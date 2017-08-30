@@ -38,7 +38,7 @@ tf.app.flags.DEFINE_string(
     'Comma-separated list of pruning scope.'
     'By default, None would prunned.')
 tf.app.flags.DEFINE_string(
-    'pruning_rates_of_trainable_scopes', None,
+    'pruning_rates', None,
     'Comma-separated list of pruning rates used to prun each trainable scope.'
     'By default, The default pruning rate is 1.0.')
 tf.app.flags.DEFINE_string(
@@ -474,7 +474,7 @@ def get_pruning_mask(variables_to_pruning):
     length=var_vec.shape[0].value
     top_k=tf.nn.top_k(var_vec,k=tf.cast(length*float(rate),tf.int32))
     thread=tf.reduce_min(top_k[0])
-    thread_vec=tf.fill([length],thread)
+    thread_vec=tf.fill([length],thread) ##
     mask_vec=var_vec>thread_vec
     ##print("get_pruning_mask--mask_vec:",mask_vec)
     mask.append((var.name,tf.reshape(mask_vec,shape)))
@@ -511,6 +511,10 @@ def apply_pruning_to_var(variables_to_pruning,sess):
         index = 0
       thread=sort_abs_var_arr[index]
       print("thread=",thread)
+      print("abs_var_arr info:")
+      print("std=",np.std(abs_var_arr))
+      print("var=",np.var(abs_var_arr))
+      print("mean=",np.mean(abs_var_arr))
       mask_arr=abs_var_arr<thread
       print("mask_arr=",mask_arr)
     elif FLAGS.pruning_strategy == "AXIS_0" :
@@ -567,12 +571,12 @@ def get_variables_to_pruning():
   else:
     scopes = [scope.strip() for scope in FLAGS.pruning_scopes.split(',')]
   
-  if FLAGS.pruning_rates_of_trainable_scopes:
-    rates = [irate for irate in FLAGS.pruning_rates_of_trainable_scopes.split(',')]
+  if FLAGS.pruning_rates:
+    rates = [irate for irate in FLAGS.pruning_rates.split(',')]
   
   count=0
   for scope in scopes:
-    if FLAGS.pruning_rates_of_trainable_scopes is None:
+    if FLAGS.pruning_rates is None:
       rate=0.2
     else:
       rate=rates[count]
@@ -602,14 +606,17 @@ def get_variables_to_pruning():
 
 def main(_):
   ###add for pruning
-  gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=1.0)#add by lzlu  
+  gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.1)#add by lzlu  
   sessGPU = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))  
   print("FLAGS.max_number_of_steps:",FLAGS.max_number_of_steps)
   print("FLAGS.learning_rate:",FLAGS.learning_rate)
   print("FLAGS.weight_decay:",FLAGS.weight_decay)
   print("FLAGS.batch_size:",FLAGS.batch_size)
   print("FLAGS.trainable_scopes:",FLAGS.trainable_scopes)
-  print("FLAGS.pruning_rates_of_trainable_scopes:",FLAGS.pruning_rates_of_trainable_scopes)
+  print("FLAGS.pruning_rates:",FLAGS.pruning_rates)
+  print("FLAGS.train_dir:",FLAGS.train_dir)
+  print("FLAGS.checkpoint_path:",FLAGS.checkpoint_path)
+  print("FLAGS.pruning_gradient_update_ratio:",FLAGS.pruning_gradient_update_ratio)
   ###
   if not FLAGS.dataset_dir:
     raise ValueError('You must supply the dataset directory with --dataset_dir')
