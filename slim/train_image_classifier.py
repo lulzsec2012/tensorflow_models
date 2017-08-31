@@ -538,6 +538,16 @@ def apply_pruning_to_var(variables_to_pruning,sess):
       length=len(var_arr_reshape_abs_sort)
       index=int(length*(1-float(rate)))-1
       print("length=",length)
+      print("var_arr_reshape_abs info:")
+      print("std=",np.std(var_arr_reshape_abs))
+      print("var=",np.var(var_arr_reshape_abs))
+      print("mean=",np.mean(var_arr_reshape_abs))
+
+      print("var_arr_reshape_abs masked 0 info:")
+      var_arr_reshape_abs_m=np.ma.masked_values(var_arr_reshape_abs,0)
+      print("std=",np.std(var_arr_reshape_abs_m))
+      print("var=",np.var(var_arr_reshape_abs_m))
+      print("mean=",np.mean(var_arr_reshape_abs_m))
       print("index=",index)
       if index < 0:
         index = 0

@@ -4,9 +4,9 @@ trap "kill 0" INT
 #####################################################
 #                 Global Config
 #####################################################
-DATASET_DIR=/tmp/mnist #/mllib/ImageNet/ILSVRC2012_tensorflow
+DATASET_DIR=/dataset_tensorflow/mnist/ #/mllib/ImageNet/ILSVRC2012_tensorflow
 DATASET_NAME=mnist     #imagenet
-TRAIN_DIR_PREFIX=./train_dir_AB_mnist_weight_decay
+TRAIN_DIR_PREFIX=./train_dir_AB_mnist_rmsprop
 EVAL_INTERVAL=250
 SAVE_SUMMARIES_SECS=250
 DEFAULT_MAX_NUMBER_OF_STEPS=5000
@@ -132,9 +132,9 @@ function pruning_and_retrain_step()
     echo "Commands:" $@
     #global DATASET_DIR MODEL_NAME
     #make sure --max_number_of_steps=10 
-    python train_image_classifier.py --noclone_on_cpu --optimizer sgd --labels_offset=$LABELS_OFFSET --dataset_dir=${DATASET_DIR} --dataset_name=$DATASET_NAME --dataset_split_name=train --model_name=$MODEL_NAME \
+    python3 train_image_classifier.py --noclone_on_cpu --optimizer sgd --labels_offset=$LABELS_OFFSET --dataset_dir=${DATASET_DIR} --dataset_name=$DATASET_NAME --dataset_split_name=train --model_name=$MODEL_NAME \
 	--max_number_of_steps=10 $@ --max_number_of_steps=10 
-    python train_image_classifier.py --noclone_on_cpu --optimizer sgd --labels_offset=$LABELS_OFFSET --dataset_dir=${DATASET_DIR} --dataset_name=$DATASET_NAME --dataset_split_name=train --model_name=$MODEL_NAME $@
+    python3 train_image_classifier.py --noclone_on_cpu --optimizer sgd --labels_offset=$LABELS_OFFSET --dataset_dir=${DATASET_DIR} --dataset_name=$DATASET_NAME --dataset_split_name=train --model_name=$MODEL_NAME $@
 }
 
 #####################################################
@@ -147,7 +147,7 @@ function eval_image_classifier()
     local tmp_checkpoint_path=`next_CHECKPOINT_PATH $train_dir`
     echo "train_dir="$train_dir
     echo "tmp_checkpoint_path="$tmp_checkpoint_path
-    python eval_image_classifier.py --alsologtostderr --checkpoint_path=${tmp_checkpoint_path} --dataset_dir=${DATASET_DIR} --dataset_name=$DATASET_NAME --dataset_split_name=$DATASET_SPLIT_NAME_FOR_VAL \
+    python3 eval_image_classifier.py --alsologtostderr --checkpoint_path=${tmp_checkpoint_path} --dataset_dir=${DATASET_DIR} --dataset_name=$DATASET_NAME --dataset_split_name=$DATASET_SPLIT_NAME_FOR_VAL \
 	--model_name=$MODEL_NAME --eval_dir ${train_dir}/eval_event --labels_offset=$LABELS_OFFSET --max_num_batches=50 2>&1 | grep logging
 }
 
@@ -239,8 +239,8 @@ function pruning_and_retrain_step_eval()
 	then
 	    consum_number_of_steps=$max_number_of_steps
 	fi
-
-	python train_image_classifier.py --noclone_on_cpu --optimizer sgd --labels_offset=$LABELS_OFFSET --dataset_dir=${DATASET_DIR} --dataset_name=$DATASET_NAME --dataset_split_name=train --model_name=$MODEL_NAME \
+        #rmsprop
+	python3 train_image_classifier.py --noclone_on_cpu --optimizer sgd --labels_offset=$LABELS_OFFSET --dataset_dir=${DATASET_DIR} --dataset_name=$DATASET_NAME --dataset_split_name=train --model_name=$MODEL_NAME \
 	    --save_summaries_secs=$SAVE_SUMMARIES_SECS $@ \
 	    --max_number_of_steps=$consum_number_of_steps --pruning_gradient_update_ratio=$pruning_gradient_update_ratio
 	
@@ -351,7 +351,7 @@ En_AUTO_RATE_PRUNING_EARLY_SKIP="Disable"
 train_dir=$TRAIN_DIR_PREFIX/$MODEL_NAME/Retrain_from_Scratch
 print_info "A"
 ###pruning_and_retrain_step_eval --train_dir=${train_dir} \
-   ### --learning_rate=0.01  --weight_decay=0.00005 --batch_size=64 --max_number_of_steps=16000 \
+###                              --learning_rate=0.01  --weight_decay=0.0005 --batch_size=64 --max_number_of_steps=16000 
     #--learning_rate=0.00001  --weight_decay=0.00005 --batch_size=64 --max_number_of_steps=50 \
 
     ##--checkpoint_path=${checkpoint_path}
@@ -359,7 +359,7 @@ print_info "A"
 checkpoint_path=`next_CHECKPOINT_PATH $train_dir`
 
 checkpoint_path=./train_dir_AB_mnist/lenet/Retrain_from_Scratch/model.ckpt-16000
-g_Accuracy=9728
+g_Accuracy=9736
 #Calculate and Print Eval Info
 g_preAccuracy=$g_Accuracy
 echo "checkpoint_path :" $checkpoint_path
@@ -399,8 +399,8 @@ then
 	
 	auto_rate_pruning --checkpoint_path=${checkpoint_path}  --train_dir=${train_dir} --max_number_of_steps=$max_number_of_steps \
 	    --trainable_scopes=$trainable_scopes --pruning_scopes=$pruning_scopes --pruning_rates=$pruning_rates --pruning_strategy=AUTO \
-	    --learning_rate=0.001  --weight_decay=0.0005 --batch_size=64
-
+	    --learning_rate=0.0001  --weight_decay=0.0005 --batch_size=64
+        exit 0
 	checkpoint_path=`next_CHECKPOINT_PATH $train_dir`
 	echo "checkpoint_path is:" $checkpoint_path
 	if [ $row -eq -1 ]
