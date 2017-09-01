@@ -1,0 +1,20 @@
+;;;; Emacs Bookmark Format Version 1 ;;;;
+;;; This format is meant to be slightly human-readable;
+;;; nevertheless, you probably don't want to edit it.
+;;; -*- End Of Bookmark File Format Version Stamp -*-
+(("repeat"
+ (filename . "~/.emacs.el")
+ (front-context-string . "rs-kill-emacs)\n\n")
+ (rear-context-string . "f4] 'save-buffe ")
+ (position . 9248))
+("default-bookmark2"
+ (filename . "~/ycai/emacs.el")
+ (front-context-string . "n-mode)\n		   (co")
+ (rear-context-string . "\\.e3\\\\'\" 'specma")
+ (position . 1254))
+("default-bookmark1"
+ (filename . "~/ycai/emacs.el")
+ (front-context-string . "\" \"Verilog mode\"")
+ (rear-context-string . "de \"verilog-mode")
+ (position . 614))
+)

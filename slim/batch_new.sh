@@ -6,7 +6,7 @@ trap "kill 0" INT
 #####################################################
 DATASET_DIR=/tmp/mnist #/mllib/ImageNet/ILSVRC2012_tensorflow
 DATASET_NAME=mnist     #imagenet
-TRAIN_DIR_PREFIX=./train_dir_AB_mnist_TEST_multiLayer
+TRAIN_DIR_PREFIX=./train_dir_AB_mnist_16000_CONV1
 EVAL_INTERVAL=250
 SAVE_SUMMARIES_SECS=250
 DEFAULT_MAX_NUMBER_OF_STEPS=5000
@@ -154,19 +154,23 @@ function get_Accuracy()
 
 function modify_string()
 {
-    local str=$1
-    local index=$2
-    local val=$3
-    local NF=`echo "$str" | awk -F "," '{print NF}'`
+    local multiLayers=$1      #multiLayers=vgg_16/conv1/conv1_1,vgg_16/conv1/conv1_2,vgg_16/conv2/conv2_1
+    local multiLayers_rate=$2 #multiLayers_rate=0.58,0.22,0.34
+    local modifyLayer=$3      #modifyLayer=vgg_16/conv1/conv1_2
+    local modifyRate=$4       #modifyRate=0.5
+                        #output : 0.58,0.5,0.34
+    local NF=`echo "$multiLayers" | awk -F "," '{print NF}'`
     local _rates=""
     for((i=1;i<=$NF;i+=1))
     do
-	tmpVal=`echo "$str" | awk -v col=$i -F "," '{print $col}'`
-	if [ $i = $index ]
+	curLayer=`echo "$multiLayers" | awk -v col=$i -F "," '{print $col}'`
+	curRate=`echo "$multiLayers_rate" | awk -v col=$i -F "," '{print $col}'`
+	if [ $curLayer = $modifyLayer ]
 	then
-	    tmpVal=$val
+	    _rates=$_rates,$modifyRate
+	else
+	    _rates=$_rates,$curRate
 	fi
-	_rates=$_rates,$tmpVal
     done
     _rates=${_rates#,}
     echo "$_rates"
@@ -236,7 +240,7 @@ function pruning_and_retrain_step_eval()
 	    consum_number_of_steps=$max_number_of_steps
 	fi
 
-	python train_image_classifier.py --noclone_on_cpu --optimizer=rmsprop sgd --labels_offset=$LABELS_OFFSET --dataset_dir=${DATASET_DIR} --dataset_name=$DATASET_NAME --dataset_split_name=train --model_name=$MODEL_NAME \
+	python train_image_classifier.py --noclone_on_cpu --optimizer sgd --labels_offset=$LABELS_OFFSET --dataset_dir=${DATASET_DIR} --dataset_name=$DATASET_NAME --dataset_split_name=train --model_name=$MODEL_NAME \
 	    --save_summaries_secs=$SAVE_SUMMARIES_SECS $@ \
 	    --max_number_of_steps=$consum_number_of_steps --pruning_gradient_update_ratio=$pruning_gradient_update_ratio
 
@@ -279,18 +283,9 @@ function auto_rate_pruning()
 
     pruning_scopes=`parse_args "$*" "pruning_scopes"`
     pruning_rates=`parse_args "$*" "pruning_rates"`
-    pruning_layer_index=`parse_args "$*" "pruning_layer_index"`
-    #curLayer=`echo "$pruning_scopes" | awk -v col=$pruning_layer_index -F "," '{print $col}'`
-    curRate=`echo "$pruning_rates" | awk -v col=$pruning_layer_index -F "," '{print $col}'`
-    curStep=`echo "$pruning_steps" | awk -v col=$pruning_layer_index -F "," '{print $col}'`
-
-    local pruning_step=$curStep
-    local begin_pruning_rate=$curRate
-    local end_pruning_rate=0
-    let "end_pruning_rate=begin_pruning_rate-curStep"
-
+    local pruning_step=10
     local allow_pruning_loss=20 #0.2%*100
-
+    local begin_pruning_rate=80
     let "g_Accuracy_thr=g_preAccuracy-allow_pruning_loss"
 
     g_prePass_rate=$begin_pruning_rate
@@ -300,17 +295,17 @@ function auto_rate_pruning()
     local local_cnt=0
     local count=0
     local layer_train_dir=$train_dir
-    for((rate100=$begin_pruning_rate;rate100>=$end_pruning_rate;rate100-=$pruning_step))
+    for((rate100=$begin_pruning_rate;rate100>0;rate100-=$pruning_step))
     do
 	#local rate="0.$rate100"
 	local rate=$(echo "scale=2; $rate100 / 100"  | bc)
-	pruning_rates=`modify_string $pruning_rates $pruning_layer_index $rate`
+	scopes_rate=`modify_string $pruning_scopes $pruning_rates ${pruning_scopes%%,*} $rate`
 
 
 	echo -e "\n\n"
 	rate_train_dir=${layer_train_dir}_${count}_$rate100
 	#rm ${layer_train_dir}_*_$rate100 -rvf #delate failed tries
-	pruning_and_retrain_step_eval $@ --pruning_rates=$scopes_rates \
+	pruning_and_retrain_step_eval $@ --pruning_rates=$scopes_rate \
             --checkpoint_path=${checkpoint_path}  --train_dir=${rate_train_dir}
 
 	echo -e "Round "$count "Result:"
@@ -324,7 +319,6 @@ function auto_rate_pruning()
 	then
 	    let "rate100=rate100+pruning_step" #this is right
 	    let "pruning_step=pruning_step/2"
-	    pruning_steps=`modify_string $pruning_steps $pruning_layer_index $pruning_step`
 	    let "local_cnt+=1"
 	    echo "Draw Back $local_cnt Times."
 	else
@@ -335,7 +329,6 @@ function auto_rate_pruning()
             if [ $rate100 -le $pruning_step ]
             then
                 let "pruning_step=pruning_step/2"
-		pruning_steps=`modify_string $pruning_steps $pruning_layer_index $pruning_step`
             fi
 	fi
 	echo -e "pruning_step="$pruning_step " \n\n"
@@ -352,7 +345,6 @@ function auto_rate_pruning()
     mkdir -p ${pruned_dir}_final
 
     echo -e "The final pruning rate of layer $(basename $train_dir) is:"$g_prePass_rate  #output rate
-    pruning_rates=`modify_string $pruning_rates $pruning_layer_index $g_prePass_rate`
     g_preAccuracy=$g_Accuracy
     echo -e "The final Accuracy of layer $(basename $train_dir) is:"$g_Accuracy "\n\n" #for next layer
 }
@@ -367,16 +359,16 @@ g_preAccuracy=9999 # init
 En_AUTO_RATE_PRUNING_EARLY_SKIP="Disable"
 train_dir=${TRAIN_DIR_PREFIX}_${MODEL_NAME}/Retrain_from_Scratch
 print_info "A"
-###pruning_and_retrain_step_eval --train_dir=${train_dir} \
-###    --learning_rate=0.01  --weight_decay=0.0005 --batch_size=64 --max_number_of_steps=16000 \
+pruning_and_retrain_step_eval --train_dir=${train_dir} \
+    --learning_rate=0.01  --weight_decay=0.0005 --batch_size=64 --max_number_of_steps=16000 \
     #--learning_rate=0.00001  --weight_decay=0.00005 --batch_size=64 --max_number_of_steps=50 \
 
     ##--checkpoint_path=${checkpoint_path}
     #####--checkpoint_exclude_scopes=$checkpoint_exclude_scopes --trainable_scopes=$checkpoint_exclude_scopes \
 checkpoint_path=`next_CHECKPOINT_PATH $train_dir`
 
-checkpoint_path=./train_dir_AB_mnist_16000_FC8_rmsprop_lenet/Retrain_from_Scratch/model.ckpt-16000
-g_Accuracy=9786
+#checkpoint_path=./train_dir_AB_mnist_16000_FC8_lenet/Retrain_from_Scratch/model.ckpt-16000
+#g_Accuracy=9728
 #Calculate and Print Eval Info
 g_preAccuracy=$g_Accuracy
 echo "checkpoint_path :" $checkpoint_path
@@ -384,7 +376,7 @@ echo "g_preAccuracy =" $g_preAccuracy
 #echo "Recall_5 =" $Recall_5
 
 #(B)Pruning without Retrain
-if [ "$En_AUTO_RATE_PRUNING_WITHOUT_RETRAIN" = "EnableX" ]
+if [ "$En_AUTO_RATE_PRUNING_WITHOUT_RETRAIN" = "Enable" ]
 then
 
     En_AUTO_RATE_PRUNING_EARLY_SKIP="Enable"
@@ -411,9 +403,9 @@ then
         pruning_scopes_pyramid="$pruning_scopes_pyramid,$layer_name"
 	pruning_rates_pyramid="$pruning_rates_pyramid,$pruning_rate"
 
-	trainable_scopes=`get_multilayer_scopes 1 0 $row 1`
-	pruning_scopes=`get_multilayer_scopes 1 0 $row 1`
-	pruning_rates=`get_multilayer_scopes 1 0 $row 2`
+	trainable_scopes=`get_multilayer_scopes 0 0 $row 1`
+	pruning_scopes=`get_multilayer_scopes 0 0 $row 1`
+	pruning_rates=`get_multilayer_scopes 0 0 $row 2`
 	
 	auto_rate_pruning --checkpoint_path=${checkpoint_path}  --train_dir=${train_dir} --max_number_of_steps=$max_number_of_steps \
 	    --trainable_scopes=$trainable_scopes --pruning_scopes=$pruning_scopes --pruning_rates=$pruning_rates --pruning_strategy=AUTO \
@@ -429,7 +421,7 @@ then
     exit 0
     checkpoint_path=`next_CHECKPOINT_PATH $train_dir`
 fi
-
+exit 0
 #(C)Pruning and Retrain
 trainable_scopes_pyramid=""
 pruning_rates_pyramid=""
