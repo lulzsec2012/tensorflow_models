@@ -4,7 +4,7 @@ trap "kill 0" INT
 #####################################################
 #                 Global Config
 #####################################################
-DATASET_DIR=/tmp/mnist #/mllib/ImageNet/ILSVRC2012_tensorflow
+DATASET_DIR=/dataset_tensorflow/mnist #/mllib/ImageNet/ILSVRC2012_tensorflow
 DATASET_NAME=mnist     #imagenet
 TRAIN_DIR_PREFIX=./train_dir_AB_mnist_16000_CONV1
 EVAL_INTERVAL=250
@@ -127,7 +127,7 @@ function _eval_image_classifier()
     local tmp_checkpoint_path=`next_CHECKPOINT_PATH $train_dir`
     echo "train_dir="$train_dir
     echo "tmp_checkpoint_path="$tmp_checkpoint_path
-    python eval_image_classifier.py --alsologtostderr --checkpoint_path=${tmp_checkpoint_path} --dataset_dir=${DATASET_DIR} --dataset_name=$DATASET_NAME --dataset_split_name=$DATASET_SPLIT_NAME_FOR_VAL \
+    python3 eval_image_classifier.py --alsologtostderr --checkpoint_path=${tmp_checkpoint_path} --dataset_dir=${DATASET_DIR} --dataset_name=$DATASET_NAME --dataset_split_name=$DATASET_SPLIT_NAME_FOR_VAL \
 	--model_name=$MODEL_NAME --eval_dir ${train_dir}/eval_event --labels_offset=$LABELS_OFFSET --max_num_batches=50 2>&1 | grep logging
 }
 
@@ -151,6 +151,28 @@ function get_Accuracy()
 
 
 #####################################################
+
+function modify_str()
+{
+    local pruning_rates=$1      #0.58,0.22,0.34
+    local index=$2
+    local pruning_rate=$3       #0.5
+                        #output : 0.58,0.5,0.34
+    local NF=`echo "$pruning_rates" | awk -F "," '{print NF}'`
+    local _rates=""
+    for((i=1;i<=$NF;i+=1))
+    do
+	curRate=`echo "$pruning_rates" | awk -v col=$i -F "," '{print $col}'`
+	if [ $i -eq $index ]
+	then
+	    _rates=$_rates,$pruning_rate
+	else
+	    _rates=$_rates,$curRate
+	fi
+    done
+    _rates=${_rates#,}
+    echo "$_rates"
+}
 
 function modify_string()
 {
@@ -240,7 +262,7 @@ function pruning_and_retrain_step_eval()
 	    consum_number_of_steps=$max_number_of_steps
 	fi
 
-	python train_image_classifier.py --noclone_on_cpu --optimizer sgd --labels_offset=$LABELS_OFFSET --dataset_dir=${DATASET_DIR} --dataset_name=$DATASET_NAME --dataset_split_name=train --model_name=$MODEL_NAME \
+	python3 train_image_classifier.py --noclone_on_cpu --optimizer sgd --labels_offset=$LABELS_OFFSET --dataset_dir=${DATASET_DIR} --dataset_name=$DATASET_NAME --dataset_split_name=train --model_name=$MODEL_NAME \
 	    --save_summaries_secs=$SAVE_SUMMARIES_SECS $@ \
 	    --max_number_of_steps=$consum_number_of_steps --pruning_gradient_update_ratio=$pruning_gradient_update_ratio
 
@@ -359,16 +381,16 @@ g_preAccuracy=9999 # init
 En_AUTO_RATE_PRUNING_EARLY_SKIP="Disable"
 train_dir=${TRAIN_DIR_PREFIX}_${MODEL_NAME}/Retrain_from_Scratch
 print_info "A"
-pruning_and_retrain_step_eval --train_dir=${train_dir} \
-    --learning_rate=0.01  --weight_decay=0.0005 --batch_size=64 --max_number_of_steps=16000 \
+#pruning_and_retrain_step_eval --train_dir=${train_dir} \
+#    --learning_rate=0.01  --weight_decay=0.0005 --batch_size=64 --max_number_of_steps=16000 \
     #--learning_rate=0.00001  --weight_decay=0.00005 --batch_size=64 --max_number_of_steps=50 \
 
     ##--checkpoint_path=${checkpoint_path}
     #####--checkpoint_exclude_scopes=$checkpoint_exclude_scopes --trainable_scopes=$checkpoint_exclude_scopes \
 checkpoint_path=`next_CHECKPOINT_PATH $train_dir`
 
-#checkpoint_path=./train_dir_AB_mnist_16000_FC8_lenet/Retrain_from_Scratch/model.ckpt-16000
-#g_Accuracy=9728
+checkpoint_path=./train_dir_AB_mnist_rmsprop/lenet/Retrain_from_Scratch/model.ckpt-16000
+g_Accuracy=9728
 #Calculate and Print Eval Info
 g_preAccuracy=$g_Accuracy
 echo "checkpoint_path :" $checkpoint_path
@@ -376,7 +398,7 @@ echo "g_preAccuracy =" $g_preAccuracy
 #echo "Recall_5 =" $Recall_5
 
 #(B)Pruning without Retrain
-if [ "$En_AUTO_RATE_PRUNING_WITHOUT_RETRAIN" = "Enable" ]
+if [ "$En_AUTO_RATE_PRUNING_WITHOUT_RETRAIN" = "EnableX" ]
 then
 
     En_AUTO_RATE_PRUNING_EARLY_SKIP="Enable"
@@ -421,7 +443,7 @@ then
     exit 0
     checkpoint_path=`next_CHECKPOINT_PATH $train_dir`
 fi
-exit 0
+
 #(C)Pruning and Retrain
 trainable_scopes_pyramid=""
 pruning_rates_pyramid=""
@@ -445,26 +467,86 @@ do
     fi
 
     #Pruning and Retrain
-    train_dir=$TRAIN_DIR_PREFIX/$layer_name
-    if [ $row -ge $REPRUNING_FROM_LAYER_TH -a "$En_REPRUNING_FROM_SPECIFIC_LAYER" = "Enable" ]
-    then
-	echo -e "\n\nRepruning $layer_name"
-	rm $train_dir -rf #!!!!
-    fi
-    print_info "C-$row" ; echo "Current config line --- configs[$row]:" $line
+    #trainable_scopes=`get_multilayer_scopes 0 0 $row 1`
+    #pruning_rates=`get_multilayer_scopes 0 0 $row 2`
 
-    trainable_scopes=`get_multilayer_scopes 0 0 $row 1`
-    pruning_rates=`get_multilayer_scopes 0 0 $row 2`
-
-    pruning_and_retrain_step_eval --checkpoint_path=${checkpoint_path}  --train_dir=${train_dir} --max_number_of_steps=$max_number_of_steps \
-	--trainable_scopes=$trainable_scopes --pruning_scopes=$trainable_scopes --pruning_rates=$pruning_rates \
-	--learning_rate=0.00001  --weight_decay=0.00005 --batch_size=64 
+    #pruning_and_retrain_step_eval --checkpoint_path=${checkpoint_path}  --train_dir=${train_dir} --max_number_of_steps=$max_number_of_steps \
+    #	--trainable_scopes=$trainable_scopes --pruning_scopes=$trainable_scopes --pruning_rates=$pruning_rates \
+    #	--learning_rate=0.00001  --weight_decay=0.00005 --batch_size=64 
     
-    checkpoint_path=`next_CHECKPOINT_PATH $train_dir`
+    #checkpoint_path=`next_CHECKPOINT_PATH $train_dir`
 
 done
 #trainable_scopes_pyramid=${trainable_scopes_pyramid#,}
 #pruning_rates_pyramid=${pruning_rates_pyramid#,}
+function sel_checkPoint_and_trainDir() 
+{
+    main_train_dir=$1
+    checkpoint_path=$2
+    suffix=ping
+    if [ -d ${main_train_dir}_ping -a -d ${main_train_dir}_pang ]
+    then
+        ping_step=`cat ${main_train_dir}_ping/checkpoint | grep -v all_model_checkpoint_paths | awk -F '-' '{print $2}' | awk -F '\"' '{print $1}'`
+        pang_step=`cat ${main_train_dir}_pang/checkpoint | grep -v all_model_checkpoint_paths | awk -F '-' '{print $2}' | awk -F '\"' '{print $1}'`
+        if [ $ping_step -gt $pang_step ]
+        then
+            suffix=pang
+            checkpoint_path=`next_CHECKPOINT_PATH "${main_train_dir}_ping"`
+        else
+            suffix=ping
+            checkpoint_path=`next_CHECKPOINT_PATH "${main_train_dir}_pang"`
+        fi
+    elif [ -d ${main_train_dir}_ping ]
+    then
+        suffix=pang
+        checkpoint_path=`next_CHECKPOINT_PATH "${main_train_dir}_ping"`
+    elif [ -d ${main_train_dir}_pang ]
+    then        
+        suffix=ping
+        checkpoint_path=`next_CHECKPOINT_PATH "${main_train_dir}_pang"`
+    fi
+    echo $suffix
+}
+checkpoint_path=./train_dir_AB_mnist_rmsprop/lenet/Retrain_from_Scratch/model.ckpt-16000
+TRAIN_DIR_PREFIX=./train_dir_ACE_TEST
+train_dir=${TRAIN_DIR_PREFIX}_${MODEL_NAME}/Retrain_Prunned_Network
+
+echo "trainable_scopes_pyramid=$trainable_scopes_pyramid"
+echo "pruning_rates_pyramid=$pruning_rates_pyramid"
+
+sel_checkPoint_and_trainDir $train_dir $checkpoint_path
+echo $checkpoint_path
+echo $suffix
+echo "##############################"
+cnt=0
+count=0
+for((row=0;row<=total_row_num;row+=1))
+do
+    echo "row=$row"
+    echo "train_dir=${train_dir}_$suffix"
+    echo "checkpoint_path=${checkpoint_path}"
+    rm ${train_dir}_$suffix -rf
+    echo "cnt=$cnt"
+    pruning_and_retrain_step_eval --checkpoint_path=${checkpoint_path}  --train_dir=${train_dir}_$suffix \
+                                  --trainable_scopes=$trainable_scopes_pyramid --pruning_scopes=$trainable_scopes_pyramid \
+                                  --pruning_rates=$pruning_rates_pyramid --max_number_of_steps=500 --pruning_strategy=ABS \
+                                  --learning_rate=0.001  --weight_decay=0.0005 --batch_size=64  #2>&1 >> /dev/null
+    
+    checkpoint_path=`next_CHECKPOINT_PATH ${train_dir}_$suffix`
+    if [ $suffix = "ping" ]
+    then
+        suffix="pang"
+    else
+        suffix="ping"
+    fi
+    
+    if [ $row -eq $total_row_num -a $count -lt 3 ]
+    then
+        row=0
+        let "count+=1"
+    fi
+done
+exit 0
 
 #[D]Exit for Manual Modification
 
