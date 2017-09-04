@@ -4,9 +4,9 @@ trap "kill 0" INT
 #####################################################
 #                 Global Config
 #####################################################
-DATASET_DIR=/dataset_tensorflow/mnist #/mllib/ImageNet/ILSVRC2012_tensorflow
+DATASET_DIR=/tmp/mnist #/mllib/ImageNet/ILSVRC2012_tensorflow
 DATASET_NAME=mnist     #imagenet
-TRAIN_DIR_PREFIX=./train_dir_AB_mnist_16000_CONV1
+TRAIN_DIR_PREFIX=./train_dir_multiLayer
 EVAL_INTERVAL=250
 SAVE_SUMMARIES_SECS=250
 DEFAULT_MAX_NUMBER_OF_STEPS=5000
@@ -152,27 +152,6 @@ function get_Accuracy()
 
 #####################################################
 
-function modify_str()
-{
-    local pruning_rates=$1      #0.58,0.22,0.34
-    local index=$2
-    local pruning_rate=$3       #0.5
-                        #output : 0.58,0.5,0.34
-    local NF=`echo "$pruning_rates" | awk -F "," '{print NF}'`
-    local _rates=""
-    for((i=1;i<=$NF;i+=1))
-    do
-	curRate=`echo "$pruning_rates" | awk -v col=$i -F "," '{print $col}'`
-	if [ $i -eq $index ]
-	then
-	    _rates=$_rates,$pruning_rate
-	else
-	    _rates=$_rates,$curRate
-	fi
-    done
-    _rates=${_rates#,}
-    echo "$_rates"
-}
 
 function modify_string()
 {
@@ -203,6 +182,7 @@ function parse_args()
     arg=`echo -n "$1" | awk -F "${2}=" '{print $NF}' | awk -F " " '{print $1}'`
     echo "$arg"
 }
+
 
 function print_info()
 {
@@ -243,7 +223,7 @@ function pruning_and_retrain_step_eval()
 
     local _pre_pass_Accuracy=0
     local cnt=0
-    for((consum_number_of_steps=500;consum_number_of_steps<=$max_number_of_steps;consum_number_of_steps+=$EVAL_INTERVAL))
+    for((consum_number_of_steps=10;consum_number_of_steps<=$max_number_of_steps;consum_number_of_steps+=$EVAL_INTERVAL))
     do
 	echo "eval command:" $@
 	echo "max_number_of_steps:" $consum_number_of_steps
@@ -389,8 +369,12 @@ print_info "A"
     #####--checkpoint_exclude_scopes=$checkpoint_exclude_scopes --trainable_scopes=$checkpoint_exclude_scopes \
 checkpoint_path=`next_CHECKPOINT_PATH $train_dir`
 
-checkpoint_path=./train_dir_AB_mnist_rmsprop/lenet/Retrain_from_Scratch/model.ckpt-16000
-g_Accuracy=9728
+#checkpoint_path=./train_dir_AB_mnist_rmsprop/lenet/Retrain_from_Scratch/model.ckpt-16000
+#g_Accuracy=9728
+#g_Accuracy=9786
+#train_dir=`dirname $checkpoint_path`
+#echo "init model path:$train_dir"
+#g_Accuracy=`get_Accuracy $train_dir`
 #Calculate and Print Eval Info
 g_preAccuracy=$g_Accuracy
 echo "checkpoint_path :" $checkpoint_path
@@ -457,95 +441,254 @@ do
     layer_name=`echo $line | awk '{print $1}'`
     pruning_rate=`echo $line | awk '{print $2}'`
     max_number_of_steps=`echo $line | awk '{print $3}'`
-    if [ -z $trainable_scopes_pyramid ]
-    then
-	trainable_scopes_pyramid="$layer_name"
-	pruning_rates_pyramid="$pruning_rate"
-    else
-	trainable_scopes_pyramid="$trainable_scopes_pyramid,$layer_name"
-	pruning_rates_pyramid="$pruning_rates_pyramid,$pruning_rate"
-    fi
-
-    #Pruning and Retrain
-    #trainable_scopes=`get_multilayer_scopes 0 0 $row 1`
-    #pruning_rates=`get_multilayer_scopes 0 0 $row 2`
-
-    #pruning_and_retrain_step_eval --checkpoint_path=${checkpoint_path}  --train_dir=${train_dir} --max_number_of_steps=$max_number_of_steps \
-    #	--trainable_scopes=$trainable_scopes --pruning_scopes=$trainable_scopes --pruning_rates=$pruning_rates \
-    #	--learning_rate=0.00001  --weight_decay=0.00005 --batch_size=64 
-    
-    #checkpoint_path=`next_CHECKPOINT_PATH $train_dir`
-
+    trainable_scopes_pyramid="$trainable_scopes_pyramid,$layer_name"
+    pruning_rates_pyramid="$pruning_rates_pyramid,$pruning_rate"
 done
-#trainable_scopes_pyramid=${trainable_scopes_pyramid#,}
-#pruning_rates_pyramid=${pruning_rates_pyramid#,}
-function sel_checkPoint_and_trainDir() 
+trainable_scopes_pyramid=${trainable_scopes_pyramid#,}
+pruning_rates_pyramid=${pruning_rates_pyramid#,}
+
+function write_to_file()
 {
-    main_train_dir=$1
-    checkpoint_path=$2
-    suffix=ping
-    if [ -d ${main_train_dir}_ping -a -d ${main_train_dir}_pang ]
-    then
-        ping_step=`cat ${main_train_dir}_ping/checkpoint | grep -v all_model_checkpoint_paths | awk -F '-' '{print $2}' | awk -F '\"' '{print $1}'`
-        pang_step=`cat ${main_train_dir}_pang/checkpoint | grep -v all_model_checkpoint_paths | awk -F '-' '{print $2}' | awk -F '\"' '{print $1}'`
-        if [ $ping_step -gt $pang_step ]
-        then
-            suffix=pang
-            checkpoint_path=`next_CHECKPOINT_PATH "${main_train_dir}_ping"`
-        else
-            suffix=ping
-            checkpoint_path=`next_CHECKPOINT_PATH "${main_train_dir}_pang"`
-        fi
-    elif [ -d ${main_train_dir}_ping ]
-    then
-        suffix=pang
-        checkpoint_path=`next_CHECKPOINT_PATH "${main_train_dir}_ping"`
-    elif [ -d ${main_train_dir}_pang ]
-    then        
-        suffix=ping
-        checkpoint_path=`next_CHECKPOINT_PATH "${main_train_dir}_pang"`
-    fi
-    echo $suffix
+    filename=$1
+    content=$2
+    mkdir -p `dirname $filename`
+    echo "write_to_file::filename=$1"
+    echo "write_to_file::content=$2"
+    exec 8<&1
+    exec > $filename
+    echo $content
+    exec 1<&8
+    exec 8<&-
 }
-checkpoint_path=./train_dir_AB_mnist_rmsprop/lenet/Retrain_from_Scratch/model.ckpt-16000
+
+function read_from_file()
+{
+    filename=$1
+    exec <$filename
+    read rates
+    echo "$rates"
+}
+
+function get_str()
+{
+    local str=$1      #0.58,0.22,0.34
+    local index=$2
+    let "index=index+1"
+    substr=`echo "$str" | awk -v col=$index -F "," '{print $col}'`
+    echo "$substr"
+}
+
+function modify_str()
+{
+    local str=$1      #0.58,0.22,0.34
+    local index=$2
+    let "index=index+1"
+    local substr=$3       #0.5
+                        #output : 0.58,0.5,0.34
+    local NF=`echo "$str" | awk -F "," '{print NF}'`
+    local _rates=""
+    for((i=1;i<=$NF;i+=1))
+    do
+	cursubstr=`echo "$str" | awk -v col=$i -F "," '{print $col}'`
+	if [ $i -eq $index ]
+	then
+	    _rates=$_rates,$substr
+	else
+	    _rates=$_rates,$cursubstr
+	fi
+    done
+    _rates=${_rates#,}
+    echo "$_rates"
+}
+
+
+function pruning_and_retrain_step_eval_multiLayer()
+{
+    #global DATASET_DIR MODEL_NAME
+    local max_number_of_steps=`parse_args "$*" "max_number_of_steps"`
+    local train_dir=`parse_args "$*" "train_dir"`
+    if [ -z $max_number_of_steps ]
+    then
+	max_number_of_steps=$EVAL_INTERVAL
+    fi
+    if [ $max_number_of_steps -lt $EVAL_INTERVAL ]
+    then
+	max_number_of_steps=$EVAL_INTERVAL
+    fi
+    if [ -f $train_dir/checkpoint ]
+    then
+	cur_step=`cat $train_dir/checkpoint | grep -v "all_model_checkpoint_paths" | awk -F "-|\"" '{print $3}'`
+	if [  $cur_step -ge $max_number_of_steps ]
+	then
+	    return -1
+	fi
+    fi
+
+    local _pre_pass_Accuracy=0
+    local cnt=0
+    for((consum_number_of_steps=10;consum_number_of_steps<=$max_number_of_steps;consum_number_of_steps+=$EVAL_INTERVAL))
+    do
+	echo "eval command:" $@
+	echo "max_number_of_steps:" $consum_number_of_steps
+	pruning_gradient_update_ratio=0
+	if [ $En_AUTO_RATE_PRUNING_EARLY_SKIP = "Enable" ]
+	then
+	    if [ $cnt -eq 8 -o $cnt -eq 12 -o $cnt -eq 16 ] #
+	    then
+		pruning_gradient_update_ratio=10 #close
+		echo "Current consum_number_of_steps =" $consum_number_of_steps
+		echo "pruning_gradient_update_ratio  =" $pruning_gradient_update_ratio
+	    fi
+	fi
+	if [ $consum_number_of_steps -gt  $max_number_of_steps ]
+	then
+	    consum_number_of_steps=$max_number_of_steps
+	fi
+	python train_image_classifier.py --noclone_on_cpu --optimizer sgd --labels_offset=$LABELS_OFFSET --dataset_dir=${DATASET_DIR} --dataset_name=$DATASET_NAME --dataset_split_name=train --model_name=$MODEL_NAME \
+	    --save_summaries_secs=$SAVE_SUMMARIES_SECS $@ \
+	    --max_number_of_steps=$consum_number_of_steps --pruning_gradient_update_ratio=$pruning_gradient_update_ratio
+
+	#remove_redundant_cpkt $train_dir	
+
+	g_Accuracy=`get_Accuracy $train_dir`
+	g_Recall_5=`get_Recall_5 $train_dir`
+	echo "train_dir Pass for eval:=$train_dir"
+	echo "g_Accuracy="$g_Accuracy
+	echo "g_Recall_5="$g_Recall_5
+	if [ -z "$g_Accuracy" ]
+	then
+	    echo "Error!"
+	    exit -1
+	fi
+	if [ $consum_number_of_steps -eq 10 ]
+	then
+	    consum_number_of_steps=0
+	else
+	    echo "g_Accuracy_thr="$g_Accuracy_thr
+	    echo "g_Accuracy="$g_Accuracy
+	    if [ $En_AUTO_RATE_PRUNING_EARLY_SKIP = "Enable" ]
+	    then
+		if [ $g_Accuracy_thr -le $g_Accuracy -a $consum_number_of_steps -ne 0 -a $pruning_gradient_update_ratio -eq 0 ]
+		then
+		    return 0
+		    if [ $_pre_pass_Accuracy -ge $g_Accuracy ]
+		    then
+			return 0
+		    fi
+		    _pre_pass_Accuracy=$g_Accuracy
+		fi	
+	    fi    
+	fi
+	let "cnt+=1"
+    done
+}
+
+
+#checkpoint_path=/home/lzlu/work/tensorflow_models/slim/train_dir_AB_mnist_16000_FC8_rmsprop_noPruning_gradient_update_ratio_lenet/Pruning_and_Retrain_Layer_by_Layer/LeNet/conv1/model.ckpt-750
+checkpoint_path=./mnist_Train_from_Scratch_lenet/Retrain_from_Scratch/model.ckpt-15500
+g_Accuracy=9850
+dir=`dirname $checkpoint_path`
+echo "dir=$dir"
+g_Accuracy=`get_Accuracy $dir`
+g_preAccuracy=$g_Accuracy
+echo "g_Accuracy=$g_Accuracy"
+echo "g_preAccuracy=$g_preAccuracy"
+allow_pruning_loss=20 #0.2%*100
+let "g_Accuracy_thr=g_preAccuracy-allow_pruning_loss"
+echo "g_Accuracy_thr=$g_Accuracy_thr"
+
 TRAIN_DIR_PREFIX=./train_dir_ACE_TEST
 train_dir=${TRAIN_DIR_PREFIX}_${MODEL_NAME}/Retrain_Prunned_Network
 
 echo "trainable_scopes_pyramid=$trainable_scopes_pyramid"
 echo "pruning_rates_pyramid=$pruning_rates_pyramid"
 
-sel_checkPoint_and_trainDir $train_dir $checkpoint_path
+
+if [ -d ${train_dir}_pass ]
+then
+    checkpoint_path=`next_CHECKPOINT_PATH ${train_dir}_pass`
+fi
 echo $checkpoint_path
-echo $suffix
+
 echo "##############################"
+is_curTry_Pass=False
+CurrentRates_txt=${TRAIN_DIR_PREFIX}_${MODEL_NAME}/CurrentRates.txt
+CurrentSteps_txt=${TRAIN_DIR_PREFIX}_${MODEL_NAME}/CurrentSteps.txt
+if [ -f $CurrentRates_txt ]
+then
+    :
+else
+    write_to_file $CurrentRates_txt "0.80,0.80,0.80,0.80"
+    write_to_file $CurrentSteps_txt "0.10,0.10,0.10,0.10"    
+    echo "cat CurrentRates_txt=${TRAIN_DIR_PREFIX}_${MODEL_NAME}/CurrentRates.txt"
+    cat $CurrentRates_txt
+fi
+
 cnt=0
 count=0
+echo "total_row_num=$total_row_num"
 for((row=0;row<=total_row_num;row+=1))
 do
     echo "row=$row"
-    echo "train_dir=${train_dir}_$suffix"
-    echo "checkpoint_path=${checkpoint_path}"
-    rm ${train_dir}_$suffix -rf
     echo "cnt=$cnt"
-    pruning_and_retrain_step_eval --checkpoint_path=${checkpoint_path}  --train_dir=${train_dir}_$suffix \
-                                  --trainable_scopes=$trainable_scopes_pyramid --pruning_scopes=$trainable_scopes_pyramid \
-                                  --pruning_rates=$pruning_rates_pyramid --max_number_of_steps=500 --pruning_strategy=ABS \
-                                  --learning_rate=0.001  --weight_decay=0.0005 --batch_size=64  #2>&1 >> /dev/null
-    
-    checkpoint_path=`next_CHECKPOINT_PATH ${train_dir}_$suffix`
-    if [ $suffix = "ping" ]
+    pruning_rates=`read_from_file $CurrentRates_txt`
+    pruning_steps=`read_from_file $CurrentSteps_txt`
+    pruning_rate=`get_str $pruning_rates $row`
+    pruning_step=`get_str $pruning_steps $row`
+    pruning_rate=`echo "scale=2;$pruning_rate-$pruning_step/1.0"|bc`
+    echo "pruning_rate=$pruning_rate"
+    pruning_rates=`modify_str $pruning_rates $row  $pruning_rate` 
+    echo "pruning_rates=$pruning_rates"
+    smaller=`awk -v numa=0.01 -v numb=$pruning_step 'BEGIN{print(numa>numb)?"1":"0"}'`
+    if [ $smaller -eq 1 ]
     then
-        suffix="pang"
-    else
-        suffix="ping"
+	continue
     fi
+
+    if [ $is_curTry_Pass = "True" ]
+    then
+	rm ${train_dir}_pass -rf
+	mv ${train_dir} ${train_dir}_pass
+	checkpoint_path=`next_CHECKPOINT_PATH ${train_dir}_pass`
+    else
+	rm ${train_dir} -rf
+    fi
+    pruning_and_retrain_step_eval_multiLayer --checkpoint_path=${checkpoint_path}  --train_dir=${train_dir} \
+        --trainable_scopes=$trainable_scopes_pyramid --pruning_scopes=$trainable_scopes_pyramid \
+        --pruning_rates=$pruning_rates --max_number_of_steps=500 --pruning_strategy=ABS \
+        --learning_rate=0.001  --weight_decay=0.0005 --batch_size=64  #2>&1 >> /dev/null
+    echo "g_Accuracy="$g_Accuracy
+    echo "g_preAccuracy="$g_preAccuracy
+    echo "g_Accuracy_thr="$g_Accuracy_thr
+    echo "pruning_rates="$pruning_rates    
+    if [ "$g_Accuracy" -lt $g_Accuracy_thr ]
+    then
+	pruning_rate=`echo "scale=2;$pruning_rate+$pruning_step/1.0"|bc`
+	pruning_step=`echo "scale=2;$pruning_step/2.0"|bc`
+	is_curTry_Pass="False"
+    else
+	is_curTry_Pass="True"
+	g_prePass_checkpoint_path=$checkpoint_path
+	echo -e "Pass."
+	smaller=`awk -v numa=$pruning_rate -v numb=$pruning_step 'BEGIN{print(numa<=numb)?"1":"0"}'`
+        if [ $smaller -eq 1 ]
+        then
+	    pruning_step=`echo "scale=2;$pruning_step/2.0"|bc`
+        fi
+	write_to_file $CurrentRates_txt "$pruning_rates"
+    fi    
+
+    pruning_steps=`modify_str $pruning_steps $row  $pruning_step` 
+    write_to_file $CurrentSteps_txt "$pruning_steps"
     
     if [ $row -eq $total_row_num -a $count -lt 3 ]
     then
-        row=0
+        row=-1
         let "count+=1"
+	echo "count=$count"
     fi
 done
+
 exit 0
 
 #[D]Exit for Manual Modification
