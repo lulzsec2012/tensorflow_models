@@ -136,6 +136,11 @@ function get_Recall_5()
     local result_str=`_eval_image_classifier $1`
     local result=`echo $result_str | awk -F "Recall_5" '{print $2}' | awk -F "[" '{print $2}' | awk -F "]" '{print $1}'`
     local result_mul_10000=`echo "scale=0;$result*10000/1"|bc`
+    if [ -z "$result_mul_10000" ]
+    then
+	echo "Error:envoke get_Recall_5() failed!"
+	exit -1
+    fi
     echo $result_mul_10000
 }
 
@@ -145,6 +150,11 @@ function get_Accuracy()
     local result_str=`_eval_image_classifier $1`
     local result=`echo $result_str | awk -F "Accuracy" '{print $2}' | awk -F "[" '{print $2}' | awk -F "]" '{print $1}'`
     local result_mul_10000=`echo "scale=0;$result*10000/1"|bc`
+    if [ -z "$result_mul_10000" ]
+    then
+	echo "Error:envoke get_Accuracy() failed!"
+	exit -1
+    fi
     echo $result_mul_10000
 }
 
@@ -507,6 +517,7 @@ function pruning_and_retrain_step_eval_multiLayer()
     #global DATASET_DIR MODEL_NAME
     local max_number_of_steps=`parse_args "$*" "max_number_of_steps"`
     local train_dir=`parse_args "$*" "train_dir"`
+    local pruning_rates=`parse_args "$*" "pruning_rates"`
     if [ -z $max_number_of_steps ]
     then
 	max_number_of_steps=$EVAL_INTERVAL
@@ -535,7 +546,7 @@ function pruning_and_retrain_step_eval_multiLayer()
 	then
 	    if [ $cnt -eq 8 -o $cnt -eq 12 -o $cnt -eq 16 ] #
 	    then
-		pruning_gradient_update_ratio=10 #close
+		pruning_gradient_update_ratio=0 #close
 		echo "Current consum_number_of_steps =" $consum_number_of_steps
 		echo "pruning_gradient_update_ratio  =" $pruning_gradient_update_ratio
 	    fi
@@ -553,23 +564,20 @@ function pruning_and_retrain_step_eval_multiLayer()
 	g_Accuracy=`get_Accuracy $train_dir`
 	g_Recall_5=`get_Recall_5 $train_dir`
 	echo "train_dir Pass for eval:=$train_dir"
+	echo "g_preAccuracy="$g_preAccuracy
+	echo "g_Accuracy_thr="$g_Accuracy_thr
 	echo "g_Accuracy="$g_Accuracy
 	echo "g_Recall_5="$g_Recall_5
-	if [ -z "$g_Accuracy" ]
-	then
-	    echo "Error!"
-	    exit -1
-	fi
+	echo "pruning_rates="$pruning_rates    
 	if [ $consum_number_of_steps -eq 10 ]
 	then
 	    consum_number_of_steps=0
 	else
-	    echo "g_Accuracy_thr="$g_Accuracy_thr
-	    echo "g_Accuracy="$g_Accuracy
 	    if [ $En_AUTO_RATE_PRUNING_EARLY_SKIP = "Enable" ]
 	    then
 		if [ $g_Accuracy_thr -le $g_Accuracy -a $consum_number_of_steps -ne 0 -a $pruning_gradient_update_ratio -eq 0 ]
 		then
+		    echo "Pass!"
 		    return 0
 		    if [ $_pre_pass_Accuracy -ge $g_Accuracy ]
 		    then
@@ -577,10 +585,12 @@ function pruning_and_retrain_step_eval_multiLayer()
 		    fi
 		    _pre_pass_Accuracy=$g_Accuracy
 		fi	
+		echo "Continue!"
 	    fi    
 	fi
 	let "cnt+=1"
     done
+    return 1
 }
 
 
@@ -597,7 +607,7 @@ allow_pruning_loss=20 #0.2%*100
 let "g_Accuracy_thr=g_preAccuracy-allow_pruning_loss"
 echo "g_Accuracy_thr=$g_Accuracy_thr"
 
-TRAIN_DIR_PREFIX=./train_dir_ACE_TEST
+TRAIN_DIR_PREFIX=./train_dir_ACE_TEST_XXX
 train_dir=${TRAIN_DIR_PREFIX}_${MODEL_NAME}/Retrain_Prunned_Network
 
 echo "trainable_scopes_pyramid=$trainable_scopes_pyramid"
@@ -611,6 +621,7 @@ fi
 echo $checkpoint_path
 
 echo "##############################"
+En_AUTO_RATE_PRUNING_EARLY_SKIP="Enable"
 is_curTry_Pass=False
 CurrentRates_txt=${TRAIN_DIR_PREFIX}_${MODEL_NAME}/CurrentRates.txt
 CurrentSteps_txt=${TRAIN_DIR_PREFIX}_${MODEL_NAME}/CurrentSteps.txt
@@ -639,6 +650,7 @@ do
     echo "pruning_rate=$pruning_rate"
     pruning_rates=`modify_str $pruning_rates $row  $pruning_rate` 
     echo "pruning_rates=$pruning_rates"
+    echo "pruning_steps=$pruning_steps"
     smaller=`awk -v numa=0.01 -v numb=$pruning_step 'BEGIN{print(numa>numb)?"1":"0"}'`
     if [ $smaller -eq 1 ]
     then
@@ -655,21 +667,15 @@ do
     fi
     pruning_and_retrain_step_eval_multiLayer --checkpoint_path=${checkpoint_path}  --train_dir=${train_dir} \
         --trainable_scopes=$trainable_scopes_pyramid --pruning_scopes=$trainable_scopes_pyramid \
-        --pruning_rates=$pruning_rates --max_number_of_steps=500 --pruning_strategy=ABS \
+        --pruning_rates=$pruning_rates --max_number_of_steps=1500 --pruning_strategy=ABS \
         --learning_rate=0.001  --weight_decay=0.0005 --batch_size=64  #2>&1 >> /dev/null
-    echo "g_Accuracy="$g_Accuracy
-    echo "g_preAccuracy="$g_preAccuracy
-    echo "g_Accuracy_thr="$g_Accuracy_thr
-    echo "pruning_rates="$pruning_rates    
-    if [ "$g_Accuracy" -lt $g_Accuracy_thr ]
+    if [ $? -ne 0 ]
     then
 	pruning_rate=`echo "scale=2;$pruning_rate+$pruning_step/1.0"|bc`
 	pruning_step=`echo "scale=2;$pruning_step/2.0"|bc`
 	is_curTry_Pass="False"
     else
 	is_curTry_Pass="True"
-	g_prePass_checkpoint_path=$checkpoint_path
-	echo -e "Pass."
 	smaller=`awk -v numa=$pruning_rate -v numb=$pruning_step 'BEGIN{print(numa<=numb)?"1":"0"}'`
         if [ $smaller -eq 1 ]
         then
