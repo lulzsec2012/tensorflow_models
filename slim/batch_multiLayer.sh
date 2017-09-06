@@ -109,7 +109,7 @@ function next_CHECKPOINT_PATH()
     if [ ! -f $train_dir/checkpoint ]
 	then
 	echo "Error:File $train_dir/checkpoint do not exit!"
-	exit 1
+	exit -1
     fi
     _ckpt_=`cat $train_dir/checkpoint | grep -v all_model_checkpoint_paths | awk '{print $2}'`
     ckpt_=${_ckpt_#\"}
@@ -252,7 +252,7 @@ function pruning_and_retrain_step_eval()
 	    consum_number_of_steps=$max_number_of_steps
 	fi
 
-	python train_image_classifier.py --noclone_on_cpu --optimizer sgd --labels_offset=$LABELS_OFFSET --dataset_dir=${DATASET_DIR} --dataset_name=$DATASET_NAME --dataset_split_name=train --model_name=$MODEL_NAME \
+	python3 train_image_classifier.py --noclone_on_cpu --optimizer sgd --labels_offset=$LABELS_OFFSET --dataset_dir=${DATASET_DIR} --dataset_name=$DATASET_NAME --dataset_split_name=train --model_name=$MODEL_NAME \
 	    --save_summaries_secs=$SAVE_SUMMARIES_SECS $@ \
 	    --max_number_of_steps=$consum_number_of_steps --pruning_gradient_update_ratio=$pruning_gradient_update_ratio
 
@@ -477,6 +477,11 @@ function write_to_file()
 function read_from_file()
 {
     filename=$1
+    if ! [ -f $filename ]
+    then
+        echo "Error:File $filename do not exit!"
+        exit -1
+    fi
     exec <$filename
     read rates
     echo "$rates"
@@ -558,7 +563,7 @@ function pruning_and_retrain_step_eval_multiLayer()
 	then
 	    consum_number_of_steps=$max_number_of_steps
 	fi
-	python train_image_classifier.py --noclone_on_cpu --optimizer sgd --labels_offset=$LABELS_OFFSET --dataset_dir=${DATASET_DIR} --dataset_name=$DATASET_NAME --dataset_split_name=train --model_name=$MODEL_NAME \
+	python3 train_image_classifier.py --noclone_on_cpu --optimizer sgd --labels_offset=$LABELS_OFFSET --dataset_dir=${DATASET_DIR} --dataset_name=$DATASET_NAME --dataset_split_name=train --model_name=$MODEL_NAME \
 	    --save_summaries_secs=$SAVE_SUMMARIES_SECS $@ \
 	    --max_number_of_steps=$consum_number_of_steps --pruning_gradient_update_ratio=$pruning_gradient_update_ratio
 
@@ -614,12 +619,13 @@ function get_iter_checkpoint_path()
     local train_Dir=$1
     local checkpoint_path=$2
     local cur_iter=$3
+    local pruning_layers=$4
     let "pre_iter=cur_iter-1"
+    local chkp_dir=${train_Dir}/iter${pre_iter}_pass 
     if [ $cur_iter -eq 1 ]
     then
 	local ori_dir=`dirname $checkpoint_path`
 	mkdir -p ${train_Dir}
-	local chkp_dir=${train_Dir}/iter${pre_iter}_pass 
 	cp $ori_dir $chkp_dir  -rf
 
 	local pruning_layers_num=`echo $pruning_layers | awk -F "," '{print NF}'`
@@ -630,19 +636,11 @@ function get_iter_checkpoint_path()
 	    cur_rates="$cur_rates,0.80"    
 	    cur_steps="$cur_steps,0.10"    
 	done
-	write_to_file ${chkp_dir}/CurrentRates.txt $cur_rates
-	write_to_file ${chkp_dir}/CurrentSteps.txt $cur_steps
+	write_to_file ${chkp_dir}/CurrentRates.txt $cur_rates 2>&1 >> /dev/null
+	write_to_file ${chkp_dir}/CurrentSteps.txt $cur_steps 2>&1 >> /dev/null
     fi
     local checkpoint_path=`next_CHECKPOINT_PATH $chkp_dir`
     echo "$checkpoint_path"
-}
-
-function get_iter_train_dir()
-{
-    local train_dir=$1 
-    local cur_iter=$2
-    rm ${train_dir}/iter$cur_iter -rf
-    echo "${train_dir}/iter$cur_iter"
 }
 
 function pruning_and_retrain_multilayers_iter()
@@ -656,16 +654,21 @@ function pruning_and_retrain_multilayers_iter()
     echo "g_Accuracy_thr=$g_Accuracy_thr" ##
 
     CurrentPckhp_txt=${train_Dir}/CurrentPckhp.txt
-    local chkp_dir=`dirname $checkpoint_path`
-    CurrentRates_txt=${chkp_dir}/CurrentRates.txt
-    CurrentSteps_txt=${chkp_dir}/CurrentSteps.txt
+
 
     local checkpoint_path=`get_iter_checkpoint_path $train_Dir $checkpoint_Path $iter $pruning_layers`
-    echo "checkpoint_path=$checkpoint_path"
-    local train_dir=`get_iter_train_dir $train_Dir $iter`
-    echo "train_dir=$train_dir"
-    echo "iter=$iter"
+    local chkp_dir=`dirname $checkpoint_path`
+    CurrentRates_txt="${chkp_dir}/CurrentRates.txt"
+    CurrentSteps_txt="${chkp_dir}/CurrentSteps.txt"
     
+    local train_dir=${train_Dir}/iter$iter
+    rm $train_dir -rf
+    
+    echo "iter="$iter
+    echo "train_Dir="$train_Dir
+    echo "pruning_layers="$pruning_layers
+    echo "checkpoint_Path="$checkpoint_Path
+    echo "CurrentRates_txt="$CurrentRates_txt
     echo "##############################"
     En_AUTO_RATE_PRUNING_EARLY_SKIP="Enable"
     
@@ -733,6 +736,14 @@ function pruning_and_retrain_multilayers_iter()
 	    echo "count=$count"
 	fi
     done    
+    if ! [ -d ${train_dir}_pass ]
+    then
+        let "pre_iter=iter-1"
+        echo "pre_iter:"$pre_iter
+        cp ${train_Dir}/iter${pre_iter}_pass ${train_dir}_pass -rv
+        cp $CurrentRates_txt ${train_dir}_pass -rf
+        cp $CurrentSteps_txt ${train_dir}_pass -rf
+    fi
     rm ${train_dir} -rf
     write_to_file $CurrentPckhp_txt $iter
 }
