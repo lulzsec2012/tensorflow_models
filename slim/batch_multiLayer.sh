@@ -609,20 +609,65 @@ function get_cur_number_of_steps()
     echo "$cur_number_of_steps"
 }
 
+function get_iter_checkpoint_path()
+{
+    local train_Dir=$1
+    local checkpoint_path=$2
+    local cur_iter=$3
+    let "pre_iter=cur_iter-1"
+    if [ $cur_iter -eq 1 ]
+    then
+	local ori_dir=`dirname $checkpoint_path`
+	mkdir -p ${train_Dir}
+	local chkp_dir=${train_Dir}/iter${pre_iter}_pass 
+	cp $ori_dir $chkp_dir  -rf
+
+	local pruning_layers_num=`echo $pruning_layers | awk -F "," '{print NF}'`
+	cur_rates="0.8"
+	cur_steps="0.1"
+	for((i=1;i<$pruning_layers_num;i+=1))
+	do
+	    cur_rates="$cur_rates,0.80"    
+	    cur_steps="$cur_steps,0.10"    
+	done
+	write_to_file ${chkp_dir}/CurrentRates.txt $cur_rates
+	write_to_file ${chkp_dir}/CurrentSteps.txt $cur_steps
+    fi
+    local checkpoint_path=`next_CHECKPOINT_PATH $chkp_dir`
+    echo "$checkpoint_path"
+}
+
+function get_iter_train_dir()
+{
+    local train_dir=$1 
+    local cur_iter=$2
+    rm ${train_dir}/iter$cur_iter -rf
+    echo "${train_dir}/iter$cur_iter"
+}
 
 function pruning_and_retrain_multilayers_iter()
 {
     local pruning_layers=$1 
     local iter=$2
     local allow_pruning_loss=$3 #0.2%*100
-    local train_dir=$4
-    local checkpoint_path=$5
+    local train_Dir=$4
+    local checkpoint_Path=$5
     let "g_Accuracy_thr=g_preAccuracy-allow_pruning_loss"
     echo "g_Accuracy_thr=$g_Accuracy_thr" ##
+
+    CurrentPckhp_txt=${train_Dir}/CurrentPckhp.txt
+    local chkp_dir=`dirname $checkpoint_path`
+    CurrentRates_txt=${chkp_dir}/CurrentRates.txt
+    CurrentSteps_txt=${chkp_dir}/CurrentSteps.txt
+
+    local checkpoint_path=`get_iter_checkpoint_path $train_Dir $checkpoint_Path $iter $pruning_layers`
+    echo "checkpoint_path=$checkpoint_path"
+    local train_dir=`get_iter_train_dir $train_Dir $iter`
+    echo "train_dir=$train_dir"
+    echo "iter=$iter"
     
     echo "##############################"
     En_AUTO_RATE_PRUNING_EARLY_SKIP="Enable"
-    is_curTry_Pass=False
     
     cnt=0
     count=0
@@ -656,16 +701,16 @@ function pruning_and_retrain_multilayers_iter()
             --learning_rate=0.001  --weight_decay=0.0005 --batch_size=64  #2>&1 >> /dev/null
 	if [ $? -ne 0 ]
 	then
+	    #is_curTry_Pass="False"
 	    pruning_rate=`echo "scale=2;$pruning_rate+$pruning_step/1.0"|bc`
 	    pruning_step=`echo "scale=2;$pruning_step/2.0"|bc`
-	    is_curTry_Pass="False"
 	    rm ${train_dir} -rf
 	    if [ -d ${train_dir}_pass ]
 	    then
 		cp ${train_dir}_pass ${train_dir} -rf
 	    fi
 	else
-	    is_curTry_Pass="True"
+	    #is_curTry_Pass="True"
 	    rm ${train_dir}_pass -rf
 	    cp ${train_dir} ${train_dir}_pass -rf
 	    checkpoint_path=`next_CHECKPOINT_PATH ${train_dir}_pass`
@@ -689,6 +734,7 @@ function pruning_and_retrain_multilayers_iter()
 	fi
     done    
     rm ${train_dir} -rf
+    write_to_file $CurrentPckhp_txt $iter
 }
 
 
@@ -698,35 +744,13 @@ function pruning_and_retrain_multilayers_iter()
 function get_cur_iter() 
 {
     local CurrentPckhp_txt=$1
-    cur_iter=0
+    cur_iter=1
     if [ -f $CurrentPckhp_txt ]
     then
 	cur_iter=`read_from_file $CurrentPckhp_txt`
+	let "cur_iter+=1"
     fi
     echo "$cur_iter"
-}
-function get_cur_checkpoint_path()
-{
-    local train_Dir=$1
-    local checkpoint_path=$2
-    local cur_iter=$3
-    if [ $cur_iter -eq 0 ]
-    then
-	chkp_dir=`dirname $checkpoint_path`
-	mkdir -p ${train_Dir}
-	cp $chkp_dir ${train_Dir}/iter${cur_iter}_pass -rf
-    fi
-    local checkpoint_path=`next_CHECKPOINT_PATH ${train_Dir}/iter${cur_iter}_pass`
-    echo "$checkpoint_path"
-}
-
-function get_cur_train_dir()
-{
-    local train_dir=$1 
-    local cur_iter=$2
-    let "next_iter=cur_iter+1"
-    rm ${train_dir}/iter$next_iter -rf
-    echo "${train_dir}/iter$next_iter"
 }
 
 #multiLayers iters rate_decay
@@ -738,36 +762,12 @@ function pruning_and_retrain_multilayers()
     local train_Dir=$4
     local checkpoint_path=$5
 
-    CurrentRates_txt=${train_Dir}/CurrentRates.txt #global
-    CurrentSteps_txt=${train_Dir}/CurrentSteps.txt
     CurrentPckhp_txt=${train_Dir}/CurrentPckhp.txt
-
-
-    if ! [ -f $CurrentRates_txt ]
-    then
-	local pruning_layers_num=`echo $pruning_layers | awk -F "," '{print NF}'`
-	cur_rates="0.8"
-	cur_steps="0.1"
-	for((i=1;i<$pruning_layers_num;i+=1))
-	do
-	    cur_rates="$cur_rates,0.80"    
-	    cur_steps="$cur_steps,0.10"    
-	done
-	write_to_file $CurrentRates_txt $cur_rates
-	write_to_file $CurrentSteps_txt $cur_steps
-    fi
-
     local passed_iter=`get_cur_iter $CurrentPckhp_txt `
     echo "passed_iter=$passed_iter"
     for((iter=$passed_iter;iter<=$max_iters;iter+=1))
     do
-	local cur_checkpoint_path=`get_cur_checkpoint_path $train_Dir $checkpoint_path $iter`
-	echo "cur_checkpoint_path=$cur_checkpoint_path"
-	local cur_train_dir=`get_cur_train_dir $train_Dir $iter`
-	echo "cur_train_dir=$cur_train_dir"
-	echo "iter=$iter"
-	pruning_and_retrain_multilayers_iter $pruning_layers $iter $allow_pruning_loss $cur_train_dir $cur_checkpoint_path ##TODO
-	write_to_file $CurrentPckhp_txt $iter
+	pruning_and_retrain_multilayers_iter $pruning_layers $iter $allow_pruning_loss $train_Dir $checkpoint_path ##TODO
     done
 exit 0
 }
@@ -787,7 +787,7 @@ echo "#####################################################################"
 
 
 pruning_layers=LeNet/fc4,LeNet/conv1
-max_iters=5
+max_iters=3
 allow_pruning_loss=20
 #train_Dir
 #checkpoint_path

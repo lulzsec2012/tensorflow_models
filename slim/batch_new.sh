@@ -689,6 +689,7 @@ do
     
     if [ $row -eq $total_row_num -a $count -lt 3 ]
     then
+	let "g_Accuracy_thr=g_preAccuracy-allow_pruning_loss"
         row=-1
         let "count+=1"
 	echo "count=$count"

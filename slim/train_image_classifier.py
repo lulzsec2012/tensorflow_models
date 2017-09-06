@@ -431,20 +431,20 @@ def apply_pruning_to_grad(clones_gradients,pruningMask):
     assign_ops=[]
     for grad,var in clones_gradients:
       if var.name == mask_name:
-        print("grad.name:",grad.name)
-        print("var.name:",var.name)
-        print("grad.op.name:",grad.op.name)
-        print("var.op.name:",var.op.name)
+        ##print("grad.name:",grad.name)
+        ##print("var.name:",var.name)
+        ##print("grad.op.name:",grad.op.name)
+        ##print("var.op.name:",var.op.name)
         ##print("mask_name:",mask_name)
         ##print("mask:",mask)
         ##print("")
         mask_obj = tf.cast(mask,tf.float32)
         ###
-        print("mask_obj:",mask_obj)
+        ##print("mask_obj:",mask_obj)
         mask_DSD=FLAGS.pruning_gradient_update_ratio*(1-mask_obj)
-        print("mask_DSD:",mask_DSD)
+        ##print("mask_DSD:",mask_DSD)
         mask_obj=tf.add(mask_obj,mask_DSD)
-        print("mask_obj+mask_DSD:",mask_obj)
+        ##print("mask_obj+mask_DSD:",mask_obj)
         ###
         grad_m=tf.multiply(grad,mask_obj)
         clones_gradients[count]=(grad_m, var)
