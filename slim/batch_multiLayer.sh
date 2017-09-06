@@ -628,7 +628,7 @@ function pruning_and_retrain_multilayers_iter()
     count=0
     local pruning_layers_num=`echo $pruning_layers | awk -F "," '{print NF}'`
     echo "multilayers_iter:pruning_layers_num=$pruning_layers_num" ##
-    for((row=0;row<=total_row_num;row+=1))
+    for((row=0;row<pruning_layers_num;row+=1))
     do
 	echo "multilayers_iter:row=$row"
 	echo "cnt=$cnt"
@@ -646,19 +646,6 @@ function pruning_and_retrain_multilayers_iter()
 	then
 	    continue
 	fi
-	
-	if [ $is_curTry_Pass = "True" ]
-	then
-	    rm ${train_dir}_pass -rf
-	    cp ${train_dir} ${train_dir}_pass -rf
-	    checkpoint_path=`next_CHECKPOINT_PATH ${train_dir}_pass`
-	else
-	    rm ${train_dir} -rf
-	    if [ -d ${train_dir}_pass -a $cnt -ne 0 ]
-	    then
-		cp ${train_dir}_pass ${train_dir} -rf
-	    fi
-	fi
 
 	local max_number_of_steps=`get_cur_number_of_steps $${train_dir}_pass`
 	let "max_number_of_steps+=150"
@@ -672,8 +659,17 @@ function pruning_and_retrain_multilayers_iter()
 	    pruning_rate=`echo "scale=2;$pruning_rate+$pruning_step/1.0"|bc`
 	    pruning_step=`echo "scale=2;$pruning_step/2.0"|bc`
 	    is_curTry_Pass="False"
+	    rm ${train_dir} -rf
+	    if [ -d ${train_dir}_pass ]
+	    then
+		cp ${train_dir}_pass ${train_dir} -rf
+	    fi
 	else
 	    is_curTry_Pass="True"
+	    rm ${train_dir}_pass -rf
+	    cp ${train_dir} ${train_dir}_pass -rf
+	    checkpoint_path=`next_CHECKPOINT_PATH ${train_dir}_pass`
+
 	    smaller=`awk -v numa=$pruning_rate -v numb=$pruning_step 'BEGIN{print(numa<=numb)?"1":"0"}'`
             if [ $smaller -eq 1 ]
             then
@@ -692,6 +688,7 @@ function pruning_and_retrain_multilayers_iter()
 	    echo "count=$count"
 	fi
     done    
+    rm ${train_dir} -rf
 }
 
 
@@ -701,8 +698,8 @@ function pruning_and_retrain_multilayers_iter()
 function get_cur_iter() 
 {
     local CurrentPckhp_txt=$1
-    cur_iter=1
-    if [ -d $CurrentPckhp_txt ]
+    cur_iter=0
+    if [ -f $CurrentPckhp_txt ]
     then
 	cur_iter=`read_from_file $CurrentPckhp_txt`
     fi
@@ -713,14 +710,13 @@ function get_cur_checkpoint_path()
     local train_Dir=$1
     local checkpoint_path=$2
     local cur_iter=$3
-    let "pre_iter=cur_iter-1"
-    if [ $pre_iter -eq 0 ]
+    if [ $cur_iter -eq 0 ]
     then
 	chkp_dir=`dirname $checkpoint_path`
 	mkdir -p ${train_Dir}
-	cp $chkp_dir ${train_Dir}/iter${pre_iter}_pass -rf
+	cp $chkp_dir ${train_Dir}/iter${cur_iter}_pass -rf
     fi
-    local checkpoint_path=`next_CHECKPOINT_PATH ${train_Dir}/iter${pre_iter}_pass`
+    local checkpoint_path=`next_CHECKPOINT_PATH ${train_Dir}/iter${cur_iter}_pass`
     echo "$checkpoint_path"
 }
 
@@ -728,8 +724,9 @@ function get_cur_train_dir()
 {
     local train_dir=$1 
     local cur_iter=$2
-    rm ${train_dir}/iter$cur_iter -rf
-    echo "${train_dir}/iter$cur_iter"
+    let "next_iter=cur_iter+1"
+    rm ${train_dir}/iter$next_iter -rf
+    echo "${train_dir}/iter$next_iter"
 }
 
 #multiLayers iters rate_decay
@@ -744,17 +741,11 @@ function pruning_and_retrain_multilayers()
     CurrentRates_txt=${train_Dir}/CurrentRates.txt #global
     CurrentSteps_txt=${train_Dir}/CurrentSteps.txt
     CurrentPckhp_txt=${train_Dir}/CurrentPckhp.txt
-    local cur_iter=`get_cur_iter $CurrentPckhp_txt `
-    echo "cur_iter=$cur_iter"
-    local cur_checkpoint_path=`get_cur_checkpoint_path $train_Dir $checkpoint_path $cur_iter`
-    echo "cur_checkpoint_path=$cur_checkpoint_path"
-    local cur_train_dir=`get_cur_train_dir $train_Dir $cur_iter`
-    echo "cur_train_dir=$cur_train_dir"
 
-    local pruning_layers_num=`echo $pruning_layers | awk -F "," '{print NF}'`
 
     if ! [ -f $CurrentRates_txt ]
     then
+	local pruning_layers_num=`echo $pruning_layers | awk -F "," '{print NF}'`
 	cur_rates="0.8"
 	cur_steps="0.1"
 	for((i=1;i<$pruning_layers_num;i+=1))
@@ -766,9 +757,14 @@ function pruning_and_retrain_multilayers()
 	write_to_file $CurrentSteps_txt $cur_steps
     fi
 
-
-    for((iter=$cur_iter;iter<$max_iters;iter+=1))
+    local passed_iter=`get_cur_iter $CurrentPckhp_txt `
+    echo "passed_iter=$passed_iter"
+    for((iter=$passed_iter;iter<=$max_iters;iter+=1))
     do
+	local cur_checkpoint_path=`get_cur_checkpoint_path $train_Dir $checkpoint_path $iter`
+	echo "cur_checkpoint_path=$cur_checkpoint_path"
+	local cur_train_dir=`get_cur_train_dir $train_Dir $iter`
+	echo "cur_train_dir=$cur_train_dir"
 	echo "iter=$iter"
 	pruning_and_retrain_multilayers_iter $pruning_layers $iter $allow_pruning_loss $cur_train_dir $cur_checkpoint_path ##TODO
 	write_to_file $CurrentPckhp_txt $iter
@@ -791,7 +787,7 @@ echo "#####################################################################"
 
 
 pruning_layers=LeNet/fc4,LeNet/conv1
-max_iters=3
+max_iters=5
 allow_pruning_loss=20
 #train_Dir
 #checkpoint_path

@@ -406,10 +406,10 @@ def apply_pruning_to_grad_bak(clones_gradients,pruningMask):
     assign_ops=[]
     for grad,var in clones_gradients:
       if var.name == mask_name:
-        print("grad.name:",grad.name)
-        print("var.name:",var.name)
-        print("grad.op.name:",grad.op.name)
-        print("var.op.name:",var.op.name)
+        ###print("grad.name:",grad.name)
+        ###print("var.name:",var.name)
+        ###print("grad.op.name:",grad.op.name)
+        ###print("var.op.name:",var.op.name)
         ##print("mask_name:",mask_name)
         ##print("mask:",mask)
         ##print("")
@@ -787,8 +787,8 @@ def main(_):
         var_list=variables_to_train)
 
     ###add by lzlu
-    variables = tf.model_variables()
-    slim.model_analyzer.analyze_vars(variables, print_info=True)    
+    ###variables = tf.model_variables()
+    ###slim.model_analyzer.analyze_vars(variables, print_info=True)    
     ##print("variables_to_train:",variables_to_train)
     ##print("clones_gradients_before_pruning:",clones_gradients)
     variables_to_pruning=get_variables_to_pruning()
@@ -830,7 +830,7 @@ def main(_):
         ##print("mySaver--restore...!")
         tf.train.Saver.restore(self,sess,save_path)
         variables_to_pruning=get_variables_to_pruning()
-        print("My_variables_to_pruning__restore:",variables_to_pruning)
+        ##print("My_variables_to_pruning__restore:",variables_to_pruning)
         pruningMask=apply_pruning_to_var(variables_to_pruning,sess)
         ##print("mySaver--restore done!")
       def save(self,
