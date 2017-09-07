@@ -500,7 +500,7 @@ def apply_pruning_to_var(variables_to_pruning,sess):
     print("rate=",float(rate))
     var_arr=sess.run(var)
     print("FLAGS.pruning_strategy:",FLAGS.pruning_strategy)
-    print("var_arr_before_pruning:",var_arr)
+    ###print("var_arr_before_pruning:",var_arr)
     if FLAGS.pruning_strategy == "ABS":
       abs_var_arr=abs(var_arr)
       sort_abs_var_arr=np.sort(abs_var_arr,axis=None)
@@ -516,7 +516,7 @@ def apply_pruning_to_var(variables_to_pruning,sess):
       print("var=",np.var(abs_var_arr))
       print("mean=",np.mean(abs_var_arr))
       mask_arr=abs_var_arr<thread
-      print("mask_arr=",mask_arr)
+      ###print("mask_arr=",mask_arr)
     elif FLAGS.pruning_strategy == "AXIS_0" :
       abs_var_arr=abs(var_arr)
       sort_abs_var_arr=np.sort(abs_var_arr,axis=0)
@@ -563,7 +563,7 @@ def apply_pruning_to_var(variables_to_pruning,sess):
 
     var_arr[mask_arr] = 0
     print("var_arr.shape=",var_arr.shape)
-    print("var_arr_after_pruning:",var_arr)
+    ###print("var_arr_after_pruning:",var_arr)
     sess.run(var.assign(var_arr))
     pruningMask.append((var.name,mask_arr))
   return pruningMask
