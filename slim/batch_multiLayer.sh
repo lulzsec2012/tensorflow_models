@@ -665,10 +665,13 @@ function is_substr()
     substr=$2
 
     local elem_num=`echo $string | awk -F "," '{print NF}'`
-    for((ii=0;ii<$elem_num;ii+=1))
+    for((ii=1;ii<=$elem_num;ii+=1))
     do
-	if [ $ii -eq $substr ]
+	local elem=`echo $string | awk -v ith=$ii -F "," '{print $ith}'`
+	if [ $elem -eq $substr ]
 	then
+	    echo "is_substr:elem="$elem
+	    echo "is_substr:string="$string
 	    return 0
 	fi
     done
@@ -828,8 +831,8 @@ function pruning_and_retrain_multilayers()
     local checkpoint_Path=$5
     local pruning_layers_index=$6
 
-    pruning_singlelayer_retrain_step=150
-    pruning_multilayers_retrain_step=0
+    pruning_singlelayer_retrain_step=200
+    pruning_multilayers_retrain_step=1000
     
 
     ckhp_iter_PC_txt=${train_Dir}/ckhp_iter_PC.txt
@@ -859,7 +862,7 @@ echo "#####################################################################"
 all_trainable_scopes=LeNet/fc4,LeNet/fc3,LeNet/conv2,LeNet/conv1
 pruning_layers_index="0,1,3"
 max_iters=20
-allow_pruning_loss=20
+allow_pruning_loss=50
 #train_Dir
 #checkpoint_path
 echo "$all_trainable_scopes $max_iters $allow_pruning_loss $train_Dir $checkpoint_path"
