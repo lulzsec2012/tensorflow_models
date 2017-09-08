@@ -616,7 +616,7 @@ def get_variables_to_pruning():
 
 def main(_):
   ###add for pruning
-  gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.1)#add by lzlu  
+  gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.9)#add by lzlu  
   sessGPU = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))  
   print("FLAGS.max_number_of_steps:",FLAGS.max_number_of_steps)
   print("FLAGS.learning_rate:",FLAGS.learning_rate)

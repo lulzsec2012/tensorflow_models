@@ -4,22 +4,22 @@ trap "kill 0" INT
 #####################################################
 #                 Global Config
 #####################################################
-DATASET_DIR=/tmp/mnist #/mllib/ImageNet/ILSVRC2012_tensorflow
-DATASET_NAME=mnist     #imagenet
-TRAIN_DIR_PREFIX=./train_dir_multiLayer
-EVAL_INTERVAL=50
-SAVE_SUMMARIES_SECS=50
+DATASET_DIR=/mllib/ImageNet/ILSVRC2012_tensorflow #/tmp/mnist #
+DATASET_NAME=imagenet     #imagenet
+TRAIN_DIR_PREFIX=./train_dir_multiLayer_imagenet
+EVAL_INTERVAL=250
+SAVE_SUMMARIES_SECS=250
 DEFAULT_MAX_NUMBER_OF_STEPS=200
-#DATASET_SPLIT_NAME_FOR_VAL=validation #for vgg
-DATASET_SPLIT_NAME_FOR_VAL=test #for mnist
+DATASET_SPLIT_NAME_FOR_VAL=validation  #for vgg
+#DATASET_SPLIT_NAME_FOR_VAL=test #for mnist
 #####################################################
 #           Pruning and Retrain Config
 #####################################################
-MODEL_NAME=lenet #vgg_16
-LABELS_OFFSET=0  #vgg resnet 1000+1 (1 for background)
+MODEL_NAME=vgg_16 #vgg_16
+LABELS_OFFSET=1  #vgg resnet 1000+1 (1 for background)
 checkpoint_path= #./VGG_16_RETRAIN_FOR_CONVERGENCE_SGD_20000/model.ckpt-20000
 #layer_name pruning_rate max_number_of_steps
-configs_vgg=(
+configs=(
 "vgg_16/conv1/conv1_1 0.58 $DEFAULT_MAX_NUMBER_OF_STEPS 1728"
 "vgg_16/conv1/conv1_2 0.22 $DEFAULT_MAX_NUMBER_OF_STEPS 36864"
 "vgg_16/conv2/conv2_1 0.34 $DEFAULT_MAX_NUMBER_OF_STEPS 73728"
@@ -37,7 +37,7 @@ configs_vgg=(
 "vgg_16/fc7           0.10 $DEFAULT_MAX_NUMBER_OF_STEPS 16777216"
 "vgg_16/fc8           0.23 $DEFAULT_MAX_NUMBER_OF_STEPS 20480"
 ) 
-configs=(
+configs_mnist=(
 "LeNet/conv1 0.58 $DEFAULT_MAX_NUMBER_OF_STEPS 800"
 "LeNet/conv2 0.22 $DEFAULT_MAX_NUMBER_OF_STEPS 51200"
 "LeNet/fc3   0.34 $DEFAULT_MAX_NUMBER_OF_STEPS 3211264"
@@ -134,8 +134,10 @@ function _eval_image_classifier()
     local tmp_checkpoint_path=`next_CHECKPOINT_PATH $train_dir`
     echo "train_dir="$train_dir
     echo "tmp_checkpoint_path="$tmp_checkpoint_path
-    python3 eval_image_classifier.py --alsologtostderr --checkpoint_path=${tmp_checkpoint_path} --dataset_dir=${DATASET_DIR} --dataset_name=$DATASET_NAME --dataset_split_name=$DATASET_SPLIT_NAME_FOR_VAL \
-	--model_name=$MODEL_NAME --eval_dir ${train_dir}/eval_event --labels_offset=$LABELS_OFFSET --max_num_batches=50 2>&1 | grep logging
+echo "--alsologtostderr --checkpoint_path=${tmp_checkpoint_path} --dataset_dir=${DATASET_DIR} --dataset_name=$DATASET_NAME --dataset_split_name=$DATASET_SPLIT_NAME_FOR_VAL \
+	--model_name=$MODEL_NAME --eval_dir ${train_dir}/eval_event --labels_offset=$LABELS_OFFSET --max_num_batches=50"
+    python eval_image_classifier.py --alsologtostderr --checkpoint_path=${tmp_checkpoint_path} --dataset_dir=${DATASET_DIR} --dataset_name=$DATASET_NAME --dataset_split_name=$DATASET_SPLIT_NAME_FOR_VAL \
+	--model_name=$MODEL_NAME --eval_dir=${train_dir}/eval_event --labels_offset=$LABELS_OFFSET --max_num_batches=50 2>&1 | grep logging
 }
 
 function get_Recall_5()
@@ -904,40 +906,45 @@ function pruning_and_retrain_multilayers()
 }
 
 
-checkpoint_path=./mnist_Train_from_Scratch_lenet/Retrain_from_Scratch/model.ckpt-15500
+checkpoint_path=./train_dir_AB_mnist_16000_FC8_rmsprop_noPruning_gradient_update_ratio_pruning_multiLayer_lenet/Retrain_from_Scratch/model.ckpt-16000
 dir=`dirname $checkpoint_path`
 echo $dir
-#g_Accuracy=`get_Accuracy $dir`
-g_Accuracy=9850
+_eval_image_classifier $dir
+echo "XXXXXXXXXXXXXXXXx"
+g_Accuracy=`get_Accuracy $dir`
 g_preAccuracy=$g_Accuracy
 echo "g_Accuracy=$g_Accuracy"
 echo "g_preAccuracy=$g_preAccuracy"
-TRAIN_DIR_PREFIX=./train_dir_multiLayers_OK
+exit 0
+TRAIN_DIR_PREFIX=./train_dir_multiLayers_imagenet
 train_Dir=${TRAIN_DIR_PREFIX}_${MODEL_NAME}/Retrain_Prunned_Network
 
 echo "#####################################################################"
 
 #trainable_scopes_pyramid
-all_trainable_scopes=LeNet/fc4,LeNet/fc3,LeNet/conv2,LeNet/conv1
+all_trainable_scopes="vgg_16/conv1/conv1_1,vgg_16/conv1/conv1_2,vgg_16/conv2/conv2_1,vgg_16/conv2/conv2_2,vgg_16/conv3/conv3_1,vgg_16/conv3/conv3_2,vgg_16/conv3/conv3_3,vgg_16/conv4/conv4_1,vgg_16/conv4/conv4_2,vgg_16/conv4/conv4_3,vgg_16/conv5/conv5_1,vgg_16/conv5/conv5_2,vgg_16/conv5/conv5_3,vgg_16/fc6,vgg_16/fc7,vgg_16/fc8"
 max_iters=20
 pruning_layers_index="0,1"
 allow_pruning_loss=50
-pruning_rate_drop_step=0.16
-pruning_singlelayer_retrain_step=150
-pruning_multilayers_retrain_step=500
+pruning_rate_drop_step=0.10
+pruning_singlelayer_retrain_step=500
+pruning_multilayers_retrain_step=5000
 #train_Dir
+
+
+
 echo "################################################################################################################################"
 echo "eval pruning_and_retrain_multilayers configs:"$all_trainable_scopes $max_iters $allow_pruning_loss $train_Dir $checkpoint_path \
                    $pruning_layers_index $pruning_rate_drop_step $pruning_singlelayer_retrain_step $pruning_multilayers_retrain_step
 echo "################################################################################################################################"
 #enovke
-all_trainable_scopes=LeNet/fc4,LeNet/fc3,LeNet/conv2,LeNet/conv1
+all_trainable_scopes="vgg_16/conv1/conv1_1,vgg_16/conv1/conv1_2,vgg_16/conv2/conv2_1,vgg_16/conv2/conv2_2,vgg_16/conv3/conv3_1,vgg_16/conv3/conv3_2,vgg_16/conv3/conv3_3,vgg_16/conv4/conv4_1,vgg_16/conv4/conv4_2,vgg_16/conv4/conv4_3,vgg_16/conv5/conv5_1,vgg_16/conv5/conv5_2,vgg_16/conv5/conv5_3,vgg_16/fc6,vgg_16/fc7,vgg_16/fc8"
 max_iters=20
-pruning_layers_index="0,1"
+pruning_layers_index="13,14,15"
 allow_pruning_loss=50
-pruning_rate_drop_step=0.16
-pruning_singlelayer_retrain_step=150
-pruning_multilayers_retrain_step=500
+pruning_rate_drop_step=0.10
+pruning_singlelayer_retrain_step=500
+pruning_multilayers_retrain_step=5000
 pruning_and_retrain_multilayers $all_trainable_scopes $max_iters $allow_pruning_loss $train_Dir $checkpoint_path $pruning_layers_index $pruning_rate_drop_step $pruning_singlelayer_retrain_step $pruning_multilayers_retrain_step
 
 
@@ -946,13 +953,13 @@ echo "eval pruning_and_retrain_multilayers configs:"$all_trainable_scopes $max_i
                    $pruning_layers_index $pruning_rate_drop_step $pruning_singlelayer_retrain_step $pruning_multilayers_retrain_step
 echo "################################################################################################################################"
 #enovke
-all_trainable_scopes=LeNet/fc4,LeNet/fc3,LeNet/conv2,LeNet/conv1
+all_trainable_scopes="vgg_16/conv1/conv1_1,vgg_16/conv1/conv1_2,vgg_16/conv2/conv2_1,vgg_16/conv2/conv2_2,vgg_16/conv3/conv3_1,vgg_16/conv3/conv3_2,vgg_16/conv3/conv3_3,vgg_16/conv4/conv4_1,vgg_16/conv4/conv4_2,vgg_16/conv4/conv4_3,vgg_16/conv5/conv5_1,vgg_16/conv5/conv5_2,vgg_16/conv5/conv5_3,vgg_16/fc6,vgg_16/fc7,vgg_16/fc8"
 max_iters=20
-pruning_layers_index="2,3"
+pruning_layers_index="0,1,2,3,4,5,6,7,8,9,10,11,12"
 allow_pruning_loss=100
 pruning_rate_drop_step=0.16
-pruning_singlelayer_retrain_step=150
-pruning_multilayers_retrain_step=500
+pruning_singlelayer_retrain_step=500
+pruning_multilayers_retrain_step=5000
 pruning_and_retrain_multilayers $all_trainable_scopes $max_iters $allow_pruning_loss $train_Dir $checkpoint_path $pruning_layers_index $pruning_rate_drop_step $pruning_singlelayer_retrain_step $pruning_multilayers_retrain_step
 
 
@@ -961,13 +968,13 @@ echo "eval pruning_and_retrain_multilayers configs:"$all_trainable_scopes $max_i
                    $pruning_layers_index $pruning_rate_drop_step $pruning_singlelayer_retrain_step $pruning_multilayers_retrain_step
 echo "################################################################################################################################"
 #enovke
-all_trainable_scopes=LeNet/conv1,LeNet/conv2,LeNet/fc3,LeNet/fc4
+all_trainable_scopes="vgg_16/conv1/conv1_1,vgg_16/conv1/conv1_2,vgg_16/conv2/conv2_1,vgg_16/conv2/conv2_2,vgg_16/conv3/conv3_1,vgg_16/conv3/conv3_2,vgg_16/conv3/conv3_3,vgg_16/conv4/conv4_1,vgg_16/conv4/conv4_2,vgg_16/conv4/conv4_3,vgg_16/conv5/conv5_1,vgg_16/conv5/conv5_2,vgg_16/conv5/conv5_3,vgg_16/fc6,vgg_16/fc7,vgg_16/fc8"
 max_iters=20
-pruning_layers_index="0,1,2,3"
+pruning_layers_index="0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15"
 allow_pruning_loss=150
 pruning_rate_drop_step=0.4
 pruning_singlelayer_retrain_step=500
-pruning_multilayers_retrain_step=1000
+pruning_multilayers_retrain_step=5000
 pruning_and_retrain_multilayers $all_trainable_scopes $max_iters $allow_pruning_loss $train_Dir $checkpoint_path $pruning_layers_index $pruning_rate_drop_step $pruning_singlelayer_retrain_step $pruning_multilayers_retrain_step
 
 exit 0
