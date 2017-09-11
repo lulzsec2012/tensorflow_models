@@ -83,8 +83,11 @@ FLAGS = tf.app.flags.FLAGS
 
 
 def main(_):
-  #gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.9)#add by lzlu  
+  #gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.3)#add by lzlu  
   #sessGPU = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))  
+  config = tf.ConfigProto()  
+  config.gpu_options.allow_growth=True  
+  sessGPU = tf.Session(config=config)  
 
   if not FLAGS.dataset_dir:
     raise ValueError('You must supply the dataset directory with --dataset_dir')

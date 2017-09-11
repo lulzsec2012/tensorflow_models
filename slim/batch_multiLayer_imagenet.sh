@@ -134,8 +134,6 @@ function _eval_image_classifier()
     local tmp_checkpoint_path=`next_CHECKPOINT_PATH $train_dir`
     echo "train_dir="$train_dir
     echo "tmp_checkpoint_path="$tmp_checkpoint_path
-echo "--alsologtostderr --checkpoint_path=${tmp_checkpoint_path} --dataset_dir=${DATASET_DIR} --dataset_name=$DATASET_NAME --dataset_split_name=$DATASET_SPLIT_NAME_FOR_VAL \
-	--model_name=$MODEL_NAME --eval_dir ${train_dir}/eval_event --labels_offset=$LABELS_OFFSET --max_num_batches=50"
     python eval_image_classifier.py --alsologtostderr --checkpoint_path=${tmp_checkpoint_path} --dataset_dir=${DATASET_DIR} --dataset_name=$DATASET_NAME --dataset_split_name=$DATASET_SPLIT_NAME_FOR_VAL \
 	--model_name=$MODEL_NAME --eval_dir=${train_dir}/eval_event --labels_offset=$LABELS_OFFSET --max_num_batches=50 2>&1 | grep logging
 }
@@ -727,6 +725,7 @@ function pruning_and_retrain_multilayers_iter()
     En_AUTO_RATE_PRUNING_EARLY_SKIP="Enable"
     
     count=0
+    is_preTry_Pass="True"
     local all_trainable_scopes_num=`echo $all_trainable_scopes | awk -F "," '{print NF}'`
     echo "multilayers_iter:all_trainable_scopes_num=$all_trainable_scopes_num" ##
     echo "multilayers_iter:all_trainable_scopes=$all_trainable_scopes" ##
@@ -746,7 +745,10 @@ function pruning_and_retrain_multilayers_iter()
 	pruning_step=`get_str $pruning_steps $col`
 	pruning_rate=`echo "scale=2;$pruning_rate-$pruning_step/1.0"|bc`
 	echo "pruning_rate=$pruning_rate"
-	pruning_rates=`modify_str $pruning_rates $col  $pruning_rate` 
+	if [ $is_preTry_Pass = "True" ]
+	then
+	    pruning_rates=`modify_str $pruning_rates $col  $pruning_rate` 
+	fi
 	echo "pruning_steps=$pruning_steps"
 
 	is_substr "$pruning_layers_index" $col
@@ -771,7 +773,7 @@ function pruning_and_retrain_multilayers_iter()
 	let "max_number_of_steps+=pruning_singlelayer_retrain_step"
 	
 	echo "pruning_layers_index_last="${pruning_layers_index##*,}
-	if [ ${pruning_layers_index##*,} -eq $col ]
+	if [ ${pruning_layers_index##*,} -eq $col -o $is_preTry_Pass = "False" ]
 	then
 	    let "max_number_of_steps+=pruning_multilayers_retrain_step"
 	fi
@@ -782,7 +784,7 @@ function pruning_and_retrain_multilayers_iter()
             --learning_rate=0.001  --weight_decay=0.0005 --batch_size=64  #2>&1 >> /dev/null
 	if [ $? -ne 0 ]
 	then
-	    #is_curTry_Pass="False"
+	    is_preTry_Pass="False"
 	    pruning_rate=`echo "scale=2;$pruning_rate+$pruning_step/1.0"|bc`
 	    pruning_step=`echo "scale=2;$pruning_step/2.0"|bc`
 	    rm ${train_dir} -rf
@@ -792,17 +794,18 @@ function pruning_and_retrain_multilayers_iter()
 	    write_to_file $ckhp_iter_Steps_txt "$pruning_steps"
 	    cp $ckhp_iter_Steps_txt $checkpoint_dir -rf
 	else
-	    #is_curTry_Pass="True"
+	    is_preTry_Pass="True"
 	    write_to_file $ckhp_iter_Rates_txt "$pruning_rates"
-	    rm ${train_dir}_pass -rf
-	    cp ${train_dir} ${train_dir}_pass -rf
-	    checkpoint_path=`next_CHECKPOINT_PATH ${train_dir}_pass`
-
-	    smaller=`awk -v numa=$pruning_rate -v numb=$pruning_step 'BEGIN{print(numa<=numb)?"1":"0"}'`
+	    smaller=`awk -v numa=$pruning_rate -v numb=$pruning_step 'BEGIN{print(numa-numb<0.001)?"1":"0"}'`
             if [ $smaller -eq 1 ]
             then
 		pruning_step=`echo "scale=2;$pruning_step/2.0"|bc`
             fi
+	    pruning_steps=`modify_str $pruning_steps $col  $pruning_step` 
+	    write_to_file $ckhp_iter_Steps_txt "$pruning_steps"
+	    rm ${train_dir}_pass -rf
+	    cp ${train_dir} ${train_dir}_pass -rf
+	    checkpoint_path=`next_CHECKPOINT_PATH ${train_dir}_pass`
 	fi    
 	echo "train_dir/checkpoint:"$train_dir/checkpoint
 	
@@ -896,8 +899,9 @@ function pruning_and_retrain_multilayers()
     ckhp_iter_PC_txt=${train_Dir}/ckhp_iter_PC.txt
     local passed_iter=`get_cur_iter $ckhp_iter_PC_txt `
     echo "pruning_and_retrain_multilayers1:passed_iter=$passed_iter"
-    for((iter=$passed_iter;iter<=$max_iters;iter+=1))
+    for((ii=0;ii<=$max_iters;ii+=1))
     do
+	let "iter=passed_iter+ii"
 	pruning_and_retrain_multilayers_iter $all_trainable_scopes -1 $allow_pruning_loss $train_Dir $checkpoint_Path $pruning_layers_index $pruning_singlelayer_retrain_step $pruning_multilayers_retrain_step
     done
 
@@ -906,16 +910,16 @@ function pruning_and_retrain_multilayers()
 }
 
 
-checkpoint_path=./train_dir_AB_mnist_16000_FC8_rmsprop_noPruning_gradient_update_ratio_pruning_multiLayer_lenet/Retrain_from_Scratch/model.ckpt-16000
+checkpoint_path=./VGG_16_RETRAIN_FOR_CONVERGENCE_SGD_20000/model.ckpt-20000
+
 dir=`dirname $checkpoint_path`
 echo $dir
 _eval_image_classifier $dir
 echo "XXXXXXXXXXXXXXXXx"
 g_Accuracy=`get_Accuracy $dir`
 g_preAccuracy=$g_Accuracy
-echo "g_Accuracy=$g_Accuracy"
-echo "g_preAccuracy=$g_preAccuracy"
-exit 0
+echo "g_Accuracy="$g_Accuracy
+echo "g_preAccuracy="$g_preAccuracy
 TRAIN_DIR_PREFIX=./train_dir_multiLayers_imagenet
 train_Dir=${TRAIN_DIR_PREFIX}_${MODEL_NAME}/Retrain_Prunned_Network
 
