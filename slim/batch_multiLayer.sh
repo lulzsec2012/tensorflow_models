@@ -673,6 +673,7 @@ function is_substr()
     substr=$2
 
     local elem_num=`echo $string | awk -F "," '{print NF}'`
+    local ii=0
     for((ii=1;ii<=$elem_num;ii+=1))
     do
 	local elem=`echo $string | awk -v ith=$ii -F "," '{print $ith}'`
@@ -903,15 +904,15 @@ function pruning_and_retrain_multilayers()
     local pruning_singlelayer_retrain_step=$8
     local pruning_multilayers_retrain_step=$9
 
-    set_iter_steps $all_trainable_scopes $pruning_rate_drop_step
+    #set_iter_steps $all_trainable_scopes $pruning_rate_drop_step
 
     ckhp_iter_PC_txt=${train_Dir}/ckhp_iter_PC.txt
     local passed_iter=`get_cur_iter $ckhp_iter_PC_txt `
     echo "pruning_and_retrain_multilayers1:passed_iter=$passed_iter"
-    for((it=0;it<=$max_iters;it+=1))
+    for((ii_multilayers=0;ii_multilayers<=$max_iters;ii_multilayers+=1))
     do
-	let "iter=passed_iter+it"
-	echo "pruning_and_retrain_multilayers:iter="$iter , "passed_iter="$passed_iter , "max_iters="$max_iters
+	let "iter=passed_iter+ii_multilayers"
+	echo "iter="$iter "ii_multilayers="$ii_multilayers "passed_iter="$passed_iter "max_iters="$max_iters
 	pruning_and_retrain_multilayers_iter $all_trainable_scopes -1 $allow_pruning_loss $train_Dir $checkpoint_Path $pruning_layers_index $pruning_singlelayer_retrain_step $pruning_multilayers_retrain_step
     done
 
@@ -937,7 +938,7 @@ all_trainable_scopes=LeNet/fc4,LeNet/fc3,LeNet/conv2,LeNet/conv1
 max_iters=20
 pruning_layers_index="0,1"
 allow_pruning_loss=50
-pruning_rate_drop_step=0.16
+pruning_rate_drop_step=0.10
 pruning_singlelayer_retrain_step=150
 pruning_multilayers_retrain_step=500
 #train_Dir
@@ -950,7 +951,7 @@ all_trainable_scopes=LeNet/fc4,LeNet/fc3,LeNet/conv2,LeNet/conv1
 max_iters=20
 pruning_layers_index="0,1"
 allow_pruning_loss=50
-pruning_rate_drop_step=0.16
+pruning_rate_drop_step=0.10
 pruning_singlelayer_retrain_step=500
 pruning_multilayers_retrain_step=1000
 pruning_and_retrain_multilayers $all_trainable_scopes $max_iters $allow_pruning_loss $train_Dir $checkpoint_path $pruning_layers_index $pruning_rate_drop_step $pruning_singlelayer_retrain_step $pruning_multilayers_retrain_step
@@ -965,9 +966,10 @@ all_trainable_scopes=LeNet/fc4,LeNet/fc3,LeNet/conv2,LeNet/conv1
 max_iters=20
 pruning_layers_index="2,3"
 allow_pruning_loss=100
-pruning_rate_drop_step=0.16
+pruning_rate_drop_step=0.10
 pruning_singlelayer_retrain_step=500
 pruning_multilayers_retrain_step=1000
+set_iter_steps $all_trainable_scopes $pruning_rate_drop_step
 pruning_and_retrain_multilayers $all_trainable_scopes $max_iters $allow_pruning_loss $train_Dir $checkpoint_path $pruning_layers_index $pruning_rate_drop_step $pruning_singlelayer_retrain_step $pruning_multilayers_retrain_step
 
 
@@ -983,6 +985,7 @@ allow_pruning_loss=150
 pruning_rate_drop_step=0.04
 pruning_singlelayer_retrain_step=1000
 pruning_multilayers_retrain_step=2000
+set_iter_steps $all_trainable_scopes $pruning_rate_drop_step
 pruning_and_retrain_multilayers $all_trainable_scopes $max_iters $allow_pruning_loss $train_Dir $checkpoint_path $pruning_layers_index $pruning_rate_drop_step $pruning_singlelayer_retrain_step $pruning_multilayers_retrain_step
 
 exit 0
