@@ -557,6 +557,7 @@ function pruning_and_retrain_step_eval_multiLayer()
 	fi
     fi
 
+    echo "En_AUTO_RATE_PRUNING_EARLY_SKIP="$En_AUTO_RATE_PRUNING_EARLY_SKIP
     local _pre_pass_Accuracy=0
     local cnt=0
     for((consum_number_of_steps=$starting_step;consum_number_of_steps<=$max_number_of_steps;consum_number_of_steps+=$EVAL_INTERVAL))
@@ -617,7 +618,12 @@ function pruning_and_retrain_step_eval_multiLayer()
 	fi
 	let "cnt+=1"
     done
-    return 1
+    if [ $g_Accuracy_thr -le $g_Accuracy ]
+    then
+	return 0
+    else
+	return 1
+    fi
 }
 
 function get_cur_iter() 
@@ -785,8 +791,9 @@ function pruning_and_retrain_multilayers_iter()
 	let "max_number_of_steps+=pruning_singlelayer_retrain_step"
 	
 	echo "pruning_layers_index_last="${pruning_layers_index##*,}
-	if [ ${pruning_layers_index##*,} -eq $col -o $is_preTry_Pass = "False" ]
+	if [ ${pruning_layers_index##*,} -eq $col -o $is_preTry_Pass = "FalseX" ]
 	then
+	    En_AUTO_RATE_PRUNING_EARLY_SKIP="Disable"
 	    let "max_number_of_steps+=pruning_multilayers_retrain_step"
 	fi
 
@@ -822,6 +829,7 @@ function pruning_and_retrain_multilayers_iter()
 	    cp ${train_dir} ${train_dir}_pass -rf
 	    checkpoint_path=`next_CHECKPOINT_PATH ${train_dir}_pass`
 	fi    
+	echo "is_preTry_Pass="$is_preTry_Pass
 	echo "train_dir/checkpoint:"$train_dir/checkpoint
 	
 	if [ $col -eq $all_trainable_scopes_num -a 1 -eq 0 ]
