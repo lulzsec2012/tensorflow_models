@@ -855,7 +855,7 @@ def main(_):
                             write_state)
         ##print("My Saver--save done!")
 
-    saver=mySaver()
+    saver=mySaver(max_to_keep=1)
     ###
 
     ###########################

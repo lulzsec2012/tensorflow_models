@@ -711,6 +711,7 @@ function pruning_and_retrain_multilayers_iter()
   
     local pruning_layers_num=`echo $pruning_layers_index | awk -F "," '{print NF}'`
     let "g_Accuracy_thr=g_preAccuracy-allow_pruning_loss"
+    #let "g_Recall_5_thr=g_preRecall_5-allow_pruning_loss"
 
     ckhp_iter_PC_txt=${train_Dir}/ckhp_iter_PC.txt
     if [ $iter -eq -1 -o $iter -eq 0 ]
@@ -800,6 +801,7 @@ function pruning_and_retrain_multilayers_iter()
 	pruning_and_retrain_step_eval_multiLayer --checkpoint_path=${checkpoint_path}  --train_dir=${train_dir} \
             --trainable_scopes=$all_trainable_scopes --pruning_scopes=$all_trainable_scopes \
             --pruning_rates=$pruning_rates --max_number_of_steps=$max_number_of_steps --pruning_strategy=ABS \
+	    --log_every_n_steps=50 --save_interval_secs=600 --momentum=0.9 --end_learning_rate=0.00001 \
             --learning_rate=0.00001  --weight_decay=0.0005 --batch_size=64  #2>&1 >> /dev/null
 	if [ $? -ne 0 ]
 	then
@@ -934,17 +936,21 @@ function pruning_and_retrain_multilayers()
 }
 
 
-checkpoint_path=./VGG_16_RETRAIN_FOR_CONVERGENCE_SGD_20000/model.ckpt-20000
+#checkpoint_path=./VGG_16_RETRAIN_FOR_CONVERGENCE_SGD_20000/model.ckpt-20000
+checkpoint_path=./train_dir_retrain_50000_batch_size_128_learning_rate0.00001_vgg_16/Retrain_from_Scratch/model.ckpt-50000
 
 dir=`dirname $checkpoint_path`
 echo $dir
 #_eval_image_classifier $dir
-echo "XXXXXXXXXXXXXXXXx"
+echo "XXXXXXXXXXXXXXXX"
 g_Accuracy=`get_Accuracy $dir`
+g_Recall_5=`get_Recall_5 $dir`
 g_preAccuracy=$g_Accuracy
+g_preRecall_5=$g_Recall_5
 echo "g_Accuracy="$g_Accuracy
 echo "g_preAccuracy="$g_preAccuracy
-TRAIN_DIR_PREFIX=./train_dir_multiLayers_imagenet
+echo "g_preRecall_5="$g_preRecall_5
+TRAIN_DIR_PREFIX=./train_dir_multiLayers_imagenet_from_50000_learning_rate0.00001
 train_Dir=${TRAIN_DIR_PREFIX}_${MODEL_NAME}/Retrain_Prunned_Network
 
 echo "#####################################################################"
@@ -974,7 +980,7 @@ allow_pruning_loss=50
 pruning_rate_drop_step=0.10
 pruning_singlelayer_retrain_step=500
 pruning_multilayers_retrain_step=100
-pruning_and_retrain_multilayers $all_trainable_scopes $max_iters $allow_pruning_loss $train_Dir $checkpoint_path $pruning_layers_index $pruning_rate_drop_step $pruning_singlelayer_retrain_step $pruning_multilayers_retrain_step
+#pruning_and_retrain_multilayers $all_trainable_scopes $max_iters $allow_pruning_loss $train_Dir $checkpoint_path $pruning_layers_index $pruning_rate_drop_step $pruning_singlelayer_retrain_step $pruning_multilayers_retrain_step
 
 
 echo "################################################################################################################################"
@@ -989,8 +995,8 @@ allow_pruning_loss=100
 pruning_rate_drop_step=0.10
 pruning_singlelayer_retrain_step=500
 pruning_multilayers_retrain_step=100
-set_iter_steps $all_trainable_scopes $pruning_rate_drop_step
-pruning_and_retrain_multilayers $all_trainable_scopes $max_iters $allow_pruning_loss $train_Dir $checkpoint_path $pruning_layers_index $pruning_rate_drop_step $pruning_singlelayer_retrain_step $pruning_multilayers_retrain_step
+#set_iter_steps $all_trainable_scopes $pruning_rate_drop_step
+#pruning_and_retrain_multilayers $all_trainable_scopes $max_iters $allow_pruning_loss $train_Dir $checkpoint_path $pruning_layers_index $pruning_rate_drop_step $pruning_singlelayer_retrain_step $pruning_multilayers_retrain_step
 
 
 echo "################################################################################################################################"
@@ -1002,7 +1008,7 @@ all_trainable_scopes="vgg_16/fc8,vgg_16/fc7,vgg_16/fc6,vgg_16/conv5/conv5_3,vgg_
 max_iters=20
 pruning_layers_index="0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15"
 allow_pruning_loss=150
-pruning_rate_drop_step=0.4
+pruning_rate_drop_step=0.04
 pruning_singlelayer_retrain_step=500
 pruning_multilayers_retrain_step=100
 set_iter_steps $all_trainable_scopes $pruning_rate_drop_step
