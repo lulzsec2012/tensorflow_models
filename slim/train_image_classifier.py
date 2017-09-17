@@ -46,6 +46,9 @@ tf.app.flags.DEFINE_string(
 tf.app.flags.DEFINE_integer(
     'pruning_gradient_update_ratio', 0,
     'The update ratio of the pruned gradients. 0 for pruning,!=1 for DSD.')
+tf.app.flags.DEFINE_boolean(
+    'forbid_bias_bp', False,
+    'forbid bias bp when training.')
 ###
 tf.app.flags.DEFINE_string(
     'master', '', 'The address of the TensorFlow master to use.')
@@ -480,7 +483,8 @@ def get_pruning_mask(variables_to_pruning):
     mask.append((var.name,tf.reshape(mask_vec,shape)))
 
     bias=W_B[1]
-    mask.append((bias.name,tf.fill(bias.shape,0)))
+    if FLAGS.forbid_bias_bp :
+      mask.append((bias.name,tf.fill(bias.shape,0)))
   return mask
 
 
@@ -618,9 +622,9 @@ def main(_):
   ###add for pruning
   #gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.9)#add by lzlu  
   #sessGPU = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))  
-  config = tf.ConfigProto()  
-  config.gpu_options.allow_growth=True  
-  sessGPU = tf.Session(config=config)  
+  ##config = tf.ConfigProto()  
+  ##config.gpu_options.allow_growth=True  
+  ##sessGPU = tf.Session(config=config)  
   print("FLAGS.max_number_of_steps:",FLAGS.max_number_of_steps)
   print("FLAGS.learning_rate:",FLAGS.learning_rate)
   print("FLAGS.weight_decay:",FLAGS.weight_decay)

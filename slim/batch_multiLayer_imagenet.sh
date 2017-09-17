@@ -259,7 +259,7 @@ function pruning_and_retrain_step_eval()
 	    consum_number_of_steps=$max_number_of_steps
 	fi
 
-	python3 train_image_classifier.py --noclone_on_cpu --optimizer sgd --labels_offset=$LABELS_OFFSET --dataset_dir=${DATASET_DIR} --dataset_name=$DATASET_NAME --dataset_split_name=train --model_name=$MODEL_NAME \
+	python3 train_image_classifier.py --noclone_on_cpu --optimizer=sgd --labels_offset=$LABELS_OFFSET --dataset_dir=${DATASET_DIR} --dataset_name=$DATASET_NAME --dataset_split_name=train --model_name=$MODEL_NAME \
 	    --save_summaries_secs=$SAVE_SUMMARIES_SECS $@ \
 	    --max_number_of_steps=$consum_number_of_steps --pruning_gradient_update_ratio=$pruning_gradient_update_ratio
 
@@ -539,7 +539,7 @@ function pruning_and_retrain_step_eval_multiLayer()
     fi
     if [ $max_number_of_steps -lt $EVAL_INTERVAL ]
     then
-	max_number_of_steps=$EVAL_INTERVAL
+	: #max_number_of_steps=$EVAL_INTERVAL
     fi
     
     local starting_step=10
@@ -565,7 +565,7 @@ function pruning_and_retrain_step_eval_multiLayer()
 	echo "eval command:" $@
 	echo "max_number_of_steps:" $consum_number_of_steps
 	pruning_gradient_update_ratio=0
-	if [ $En_AUTO_RATE_PRUNING_EARLY_SKIP = "Enable" ]
+	if [ $En_AUTO_RATE_PRUNING_EARLY_SKIP = "Enable" -a 1 -eq 0 ]
 	then
 	    if [ $cnt -eq 8 -o $cnt -eq 12 -o $cnt -eq 16 ] #
 	    then
@@ -587,23 +587,27 @@ function pruning_and_retrain_step_eval_multiLayer()
 	    --save_summaries_secs=$SAVE_SUMMARIES_SECS $@ \
 	    --max_number_of_steps=$consum_number_of_steps --pruning_gradient_update_ratio=$pruning_gradient_update_ratio
 
-	#remove_redundant_cpkt $train_dir	
-
 	g_Accuracy=`get_Accuracy $train_dir`
 	g_Recall_5=`get_Recall_5 $train_dir`
 	echo "train_dir Pass for eval:=$train_dir"
 	echo "g_preAccuracy="$g_preAccuracy
 	echo "g_Accuracy_thr="$g_Accuracy_thr
+	echo "g_Recall_5_thr="$g_Recall_5_thr
 	echo "g_Accuracy="$g_Accuracy
 	echo "g_Recall_5="$g_Recall_5
 	echo "pruning_rates="$pruning_rates    
+
+	#select current measurement for evaluating
+	measurement_acy=$g_Accuracy
+	measurement_thr=$g_Accuracy_thr
+
 	if [ $consum_number_of_steps -eq 10 ]
 	then
 	    consum_number_of_steps=0
 	else
 	    if [ $En_AUTO_RATE_PRUNING_EARLY_SKIP = "Enable" ]
 	    then
-		if [ $g_Accuracy_thr -le $g_Accuracy -a $consum_number_of_steps -ne 0 -a $pruning_gradient_update_ratio -eq 0 ]
+		if [ $measurement_thr -le $measurement_acy -a $consum_number_of_steps -ne 0 -a $pruning_gradient_update_ratio -eq 0 ]
 		then
 		    echo "Pass!"
 		    return 0
@@ -618,7 +622,7 @@ function pruning_and_retrain_step_eval_multiLayer()
 	fi
 	let "cnt+=1"
     done
-    if [ $g_Accuracy_thr -le $g_Accuracy ]
+    if [ $measurement_thr -le $measurement_acy ]
     then
 	return 0
     else
@@ -711,7 +715,7 @@ function pruning_and_retrain_multilayers_iter()
   
     local pruning_layers_num=`echo $pruning_layers_index | awk -F "," '{print NF}'`
     let "g_Accuracy_thr=g_preAccuracy-allow_pruning_loss"
-    #let "g_Recall_5_thr=g_preRecall_5-allow_pruning_loss"
+    let "g_Recall_5_thr=g_preRecall_5-allow_pruning_loss"
 
     ckhp_iter_PC_txt=${train_Dir}/ckhp_iter_PC.txt
     if [ $iter -eq -1 -o $iter -eq 0 ]
@@ -738,7 +742,8 @@ function pruning_and_retrain_multilayers_iter()
     En_AUTO_RATE_PRUNING_EARLY_SKIP="Enable"
     
     local cnt=0
-    count=0
+    count_stepzero=0
+    count_preTry_Pass=0
     is_preTry_Pass="True"
     local all_trainable_scopes_num=`echo $all_trainable_scopes | awk -F "," '{print NF}'`
     echo "multilayers_iter:all_trainable_scopes_num=$all_trainable_scopes_num" ##
@@ -776,9 +781,9 @@ function pruning_and_retrain_multilayers_iter()
 	    smaller=`awk -v numa=0.01 -v numb=$pruning_step 'BEGIN{print(numa>numb)?"1":"0"}'`
 	    if [ $smaller -eq 1 ]
 	    then
-		let "count+=1"
-		echo "count="$count "pruning_layers_num="$pruning_layers_num
-		if [ $count -ge $pruning_layers_num ] #check if all pruning_steps all zero.
+		let "count_stepzero+=1"
+		echo "count_stepzero="$count_stepzero "pruning_layers_num="$pruning_layers_num
+		if [ $count_stepzero -ge $pruning_layers_num ] #check if all pruning_steps all zero.
 		then
 		    break
 		fi
@@ -818,6 +823,7 @@ function pruning_and_retrain_multilayers_iter()
 	else
 	    is_preTry_Pass="True"
 	    En_AUTO_RATE_PRUNING_EARLY_SKIP="Enable"
+	    let "count_preTry_Pass+=1"
 	    cnt=0
 	    write_to_file $ckhp_iter_Rates_txt "$pruning_rates"
 	    smaller=`awk -v numa=$pruning_rate -v numb=$pruning_step 'BEGIN{print(numa-numb<0.001)?"1":"0"}'`
@@ -839,7 +845,17 @@ function pruning_and_retrain_multilayers_iter()
             col=-1
 	fi
     done 
-    if [ $count -lt $pruning_layers_num ] #check if all pruning_steps all zero.
+    let "count_preTry_Pass=count_preTry_Pass*4"
+    echo "count_preTry_Pass="$count_preTry_Pass
+    if [ $count_preTry_Pass -lt $pruning_layers_num ] 
+    then
+	echo "g_Accuracy_thr is too high!"
+	echo "current g_preAccuracy is $g_preAccuracy ; set g_preAccuracy to $g_Accuracy !"
+	echo "current g_preRecall_5 is $g_preRecall_5 ; set g_preRecall_5 to $g_Recall_5 !"
+	g_preAccuracy=$g_Accuracy
+	g_preRecall_5=$g_Recall_5
+    fi
+    if [ $count_stepzero -lt $pruning_layers_num ] #check if all pruning_steps all zero.
     then 
 	if [ ! -d ${train_dir}_pass ]
 	then
@@ -950,9 +966,10 @@ g_preRecall_5=$g_Recall_5
 echo "g_Accuracy="$g_Accuracy
 echo "g_preAccuracy="$g_preAccuracy
 echo "g_preRecall_5="$g_preRecall_5
-TRAIN_DIR_PREFIX=./train_dir_multiLayers_imagenet_from_50000_learning_rate0.00001
+TRAIN_DIR_PREFIX=./train_dir_multiLayers_imagenet_from_50000_learning_rate0.00001_reconfigGAccuracy_allowBiasBp
 train_Dir=${TRAIN_DIR_PREFIX}_${MODEL_NAME}/Retrain_Prunned_Network
-
+mkdir -p $train_Dir
+cp $0 $train_Dir
 echo "#####################################################################"
 
 #trainable_scopes_pyramid
@@ -978,9 +995,10 @@ max_iters=20
 pruning_layers_index="0,1,2"
 allow_pruning_loss=50
 pruning_rate_drop_step=0.10
-pruning_singlelayer_retrain_step=500
-pruning_multilayers_retrain_step=100
-#pruning_and_retrain_multilayers $all_trainable_scopes $max_iters $allow_pruning_loss $train_Dir $checkpoint_path $pruning_layers_index $pruning_rate_drop_step $pruning_singlelayer_retrain_step $pruning_multilayers_retrain_step
+pruning_singlelayer_retrain_step=100
+pruning_multilayers_retrain_step=1000
+#set_iter_steps $all_trainable_scopes $pruning_rate_drop_step
+pruning_and_retrain_multilayers $all_trainable_scopes $max_iters $allow_pruning_loss $train_Dir $checkpoint_path $pruning_layers_index $pruning_rate_drop_step $pruning_singlelayer_retrain_step $pruning_multilayers_retrain_step
 
 
 echo "################################################################################################################################"
@@ -993,10 +1011,10 @@ max_iters=20
 pruning_layers_index="3,4,5,6,7,8,9,10,11,12,13,14,15"
 allow_pruning_loss=100
 pruning_rate_drop_step=0.10
-pruning_singlelayer_retrain_step=500
-pruning_multilayers_retrain_step=100
-#set_iter_steps $all_trainable_scopes $pruning_rate_drop_step
-#pruning_and_retrain_multilayers $all_trainable_scopes $max_iters $allow_pruning_loss $train_Dir $checkpoint_path $pruning_layers_index $pruning_rate_drop_step $pruning_singlelayer_retrain_step $pruning_multilayers_retrain_step
+pruning_singlelayer_retrain_step=100
+pruning_multilayers_retrain_step=1000
+set_iter_steps $all_trainable_scopes $pruning_rate_drop_step
+pruning_and_retrain_multilayers $all_trainable_scopes $max_iters $allow_pruning_loss $train_Dir $checkpoint_path $pruning_layers_index $pruning_rate_drop_step $pruning_singlelayer_retrain_step $pruning_multilayers_retrain_step
 
 
 echo "################################################################################################################################"
@@ -1009,8 +1027,8 @@ max_iters=20
 pruning_layers_index="0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15"
 allow_pruning_loss=150
 pruning_rate_drop_step=0.04
-pruning_singlelayer_retrain_step=500
-pruning_multilayers_retrain_step=100
+pruning_singlelayer_retrain_step=100
+pruning_multilayers_retrain_step=1000
 set_iter_steps $all_trainable_scopes $pruning_rate_drop_step
 pruning_and_retrain_multilayers $all_trainable_scopes $max_iters $allow_pruning_loss $train_Dir $checkpoint_path $pruning_layers_index $pruning_rate_drop_step $pruning_singlelayer_retrain_step $pruning_multilayers_retrain_step
 
