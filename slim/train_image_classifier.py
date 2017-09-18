@@ -507,9 +507,14 @@ def apply_pruning_to_var(variables_to_pruning,sess):
     ###print("var_arr_before_pruning:",var_arr)
     if FLAGS.pruning_strategy == "ABS":
       abs_var_arr=abs(var_arr)
-      sort_abs_var_arr=np.sort(abs_var_arr,axis=None)
-      ##int("sort_abs_var_arr.size=",sort_abs_var_arr.size)
-      index=int(sort_abs_var_arr.size*(1-float(rate)))-1
+      if float(rate) < 0.99 :
+        print("sorting...")
+        sort_abs_var_arr=np.sort(abs_var_arr,axis=None)
+        ##int("sort_abs_var_arr.size=",sort_abs_var_arr.size)
+        index=int(sort_abs_var_arr.size*(1-float(rate)))-1
+      else:
+        print("skip sort")
+        index=-1
       print("index=",index)
       if index < 0:
         index = 0
@@ -625,6 +630,8 @@ def main(_):
   ##config = tf.ConfigProto()  
   ##config.gpu_options.allow_growth=True  
   ##sessGPU = tf.Session(config=config)  
+  sessGPU = tf.Session(config=tf.ConfigProto(log_device_placement=True))
+  sess = tf.Session(config=tf.ConfigProto(gpu_options=tf.GPUOptions(allow_growth=True)))
   print("FLAGS.max_number_of_steps:",FLAGS.max_number_of_steps)
   print("FLAGS.learning_rate:",FLAGS.learning_rate)
   print("FLAGS.weight_decay:",FLAGS.weight_decay)
@@ -649,7 +656,8 @@ def main(_):
         replica_id=FLAGS.task,
         num_replicas=FLAGS.worker_replicas,
         num_ps_tasks=FLAGS.num_ps_tasks)
-
+    print("deploy_config.variables_device():")
+    print(deploy_config.variables_device())
     # Create global_step
     with tf.device(deploy_config.variables_device()):
       global_step = slim.create_global_step()
@@ -765,6 +773,8 @@ def main(_):
     #########################################
     # Configure the optimization procedure. #
     #########################################
+    print("deploy_config.optimizer_device():")
+    print(deploy_config.optimizer_device())
     with tf.device(deploy_config.optimizer_device()):
       learning_rate = _configure_learning_rate(dataset.num_samples, global_step)
       optimizer = _configure_optimizer(learning_rate)
@@ -859,7 +869,7 @@ def main(_):
                             write_state)
         ##print("My Saver--save done!")
 
-    saver=mySaver(max_to_keep=1)
+    saver=mySaver(max_to_keep=2)
     ###
 
     ###########################
