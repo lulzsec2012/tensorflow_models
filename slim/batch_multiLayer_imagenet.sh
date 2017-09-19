@@ -7,7 +7,7 @@ trap "kill 0" INT
 DATASET_DIR=/mllib/ImageNet/ILSVRC2012_tensorflow #/tmp/mnist #
 DATASET_NAME=imagenet     #imagenet
 TRAIN_DIR_PREFIX=./train_dir_multiLayer_imagenet
-EVAL_INTERVAL=250
+EVAL_INTERVAL=20
 SAVE_SUMMARIES_SECS=250
 DEFAULT_MAX_NUMBER_OF_STEPS=200
 DATASET_SPLIT_NAME_FOR_VAL=validation  #for vgg
@@ -136,6 +136,11 @@ function eval_image_classifier()
     #echo "tmp_checkpoint_path="$tmp_checkpoint_path
     python eval_image_classifier.py --alsologtostderr --checkpoint_path=${tmp_checkpoint_path} --dataset_dir=${DATASET_DIR} --dataset_name=$DATASET_NAME --dataset_split_name=$DATASET_SPLIT_NAME_FOR_VAL \
 	--model_name=$MODEL_NAME --eval_dir=${train_dir}/eval_event --labels_offset=$LABELS_OFFSET --max_num_batches=50 2>&1 | grep logging
+    if [ $? -ne 0 ]
+    then
+	echo "envoke eval_image_classifier fail!"
+	exit 1
+    fi
 }
 
 function get_Recall_5()
@@ -228,6 +233,12 @@ function pruning_and_retrain_step_eval()
     then
 	max_number_of_steps=20
     fi
+
+    if [ $max_number_of_steps -lt $EVAL_INTERVAL ]
+    then
+	max_number_of_steps=$EVAL_INTERVAL
+    fi
+
     if [ -f $train_dir/checkpoint ]
     then
 	cur_step=`cat $train_dir/checkpoint | grep -v "all_model_checkpoint_paths" | awk -F "-|\"" '{print $3}'`
@@ -263,9 +274,9 @@ function pruning_and_retrain_step_eval()
 	    --max_number_of_steps=$consum_number_of_steps --pruning_gradient_update_ratio=$pruning_gradient_update_ratio
 
 	#remove_redundant_cpkt $train_dir	
-	local result_str=`eval_image_classifier $train_dir`
-	g_Accuracy=`get_Accuracy $result_str`
-	g_Recall_5=`get_Recall_5 $result_str`
+	local result_str1=`eval_image_classifier $train_dir`
+	g_Accuracy=`get_Accuracy $result_str1`
+	g_Recall_5=`get_Recall_5 $result_str1`
 	echo "g_Accuracy="$g_Accuracy
 	echo "g_Recall_5="$g_Recall_5
 	if [ -z "$g_Accuracy" ]
@@ -390,9 +401,9 @@ print_info "A"
 #g_Accuracy=9786
 #train_dir=`dirname $checkpoint_path`
 #echo "init model path:$train_dir"
-#local result_str=`eval_image_classifier $train_dir`
-#g_Accuracy=`get_Accuracy $result_str`
-#g_Recall_5=`get_Recall_5 $result_str`
+#local result_str2=`eval_image_classifier $train_dir`
+#g_Accuracy=`get_Accuracy $result_str2`
+#g_Recall_5=`get_Recall_5 $result_str2`
 #Calculate and Print Eval Info
 g_preAccuracy=$g_Accuracy
 echo "checkpoint_path :" $checkpoint_path
@@ -538,10 +549,10 @@ function pruning_and_retrain_step_eval_multiLayer()
     then
 	max_number_of_steps=$EVAL_INTERVAL
     fi
+    
     if [ $max_number_of_steps -lt $EVAL_INTERVAL ]
     then
-	#EVAL_INTERVAL=20
-	: #max_number_of_steps=$EVAL_INTERVAL
+	max_number_of_steps=$EVAL_INTERVAL
     fi
     
     local starting_step=10
@@ -565,7 +576,7 @@ function pruning_and_retrain_step_eval_multiLayer()
     for((consum_number_of_steps=$starting_step;consum_number_of_steps<=$max_number_of_steps;consum_number_of_steps+=$EVAL_INTERVAL))
     do
 	echo "eval command:" $@
-	echo "max_number_of_steps:" $consum_number_of_steps
+	echo "max_number_of_steps->consum_number_of_steps=" $consum_number_of_steps
 	pruning_gradient_update_ratio=0
 	if [ $En_AUTO_RATE_PRUNING_EARLY_SKIP = "Enable" -a 1 -eq 0 ]
 	then
@@ -596,9 +607,10 @@ function pruning_and_retrain_step_eval_multiLayer()
 	    exit 1
 	fi
 
-	local result_str=`eval_image_classifier $train_dir`
-	g_Accuracy=`get_Accuracy $result_str`
-	g_Recall_5=`get_Recall_5 $result_str`
+	local result_str3=`eval_image_classifier $train_dir`
+	g_Accuracy=`get_Accuracy $result_str3`
+	g_Recall_5=`get_Recall_5 $result_str3`
+	echo "local result_str:"$result_str3
 	echo "train_dir Pass for eval:=$train_dir"
 	echo "g_preAccuracy="$g_preAccuracy
 	echo "g_Accuracy_thr="$g_Accuracy_thr
@@ -624,6 +636,7 @@ function pruning_and_retrain_step_eval_multiLayer()
 		fi
 		if [ $_pre_pass_Accuracy -ge $g_Accuracy ]
 		then
+		    echo "_pre_pass_Accuracy Pass!"
 		    return 0
 		fi
 		_pre_pass_Accuracy=$g_Accuracy
@@ -631,6 +644,7 @@ function pruning_and_retrain_step_eval_multiLayer()
 	    echo "Continue Retrain!"
 	fi
 	let "cnt+=1"
+	echo "cnt="$cnt
     done
     if [ $measurement_thr -le $measurement_acy ]
     then
@@ -969,16 +983,16 @@ checkpoint_path=./train_dir_retrain_50000_batch_size_128_learning_rate0.00001_vg
 dir=`dirname $checkpoint_path`
 echo $dir
 echo "XXXXXXXXXXXXXXXX"
-result_str=`eval_image_classifier $dir`
-g_Accuracy=`get_Accuracy $result_str`
-g_Recall_5=`get_Recall_5 $result_str`
+result_str4=`eval_image_classifier $dir`
+g_Accuracy=`get_Accuracy $result_str4`
+g_Recall_5=`get_Recall_5 $result_str4`
 g_preAccuracy=$g_Accuracy
 g_preRecall_5=$g_Recall_5
 echo "result_str="$result_str
 echo "g_Accuracy="$g_Accuracy
 echo "g_preAccuracy="$g_preAccuracy
 echo "g_preRecall_5="$g_preRecall_5
-TRAIN_DIR_PREFIX=./train_dir_multiLayers_imagenet_from_50000_learning_rate0.00001_reconfigGAccuracy_allowBiasBp_worker_replicas2
+TRAIN_DIR_PREFIX=./train_dir_multiLayers_imagenet_from_50000_learning_rate0.00001_reconfigGAccuracy_allowBiasBp_worker_replicas2_test
 train_Dir=${TRAIN_DIR_PREFIX}_${MODEL_NAME}/Retrain_Prunned_Network
 mkdir -p $train_Dir
 cp $0 $train_Dir
@@ -1003,12 +1017,12 @@ echo "##########################################################################
 #enovke
 all_trainable_scopes="vgg_16/fc8,vgg_16/fc7,vgg_16/fc6,vgg_16/conv5/conv5_3,vgg_16/conv5/conv5_2,vgg_16/conv5/conv5_1,vgg_16/conv4/conv4_3,vgg_16/conv4/conv4_2,vgg_16/conv4/conv4_1,vgg_16/conv3/conv3_3,vgg_16/conv3/conv3_2,vgg_16/conv3/conv3_1,vgg_16/conv2/conv2_2,vgg_16/conv2/conv2_1,vgg_16/conv1/conv1_2,vgg_16/conv1/conv1_1"
 max_iters=20
-pruning_layers_index="0,1,2"
+pruning_layers_index="0,1"
 allow_pruning_loss=50
-pruning_rate_drop_step=0.10
+pruning_rate_drop_step=0.20
 pruning_singlelayer_retrain_step=10
 pruning_multilayers_retrain_step=10
-#set_iter_steps $all_trainable_scopes $pruning_rate_drop_step
+set_iter_steps $all_trainable_scopes $pruning_rate_drop_step
 pruning_and_retrain_multilayers $all_trainable_scopes $max_iters $allow_pruning_loss $train_Dir $checkpoint_path $pruning_layers_index $pruning_rate_drop_step $pruning_singlelayer_retrain_step $pruning_multilayers_retrain_step
 
 
