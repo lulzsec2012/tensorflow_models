@@ -39,4 +39,4 @@ http://docs.w3cub.com/tensorflow~python/tf/assign_sub/
 http://blog.sina.com.cn/s/blog_632254bc01018ab7.html
 
 
-DATASET_DIR=/mllib/ImageNet/ILSVRC2012_tensorflow ; CHECKPOINT_DIR=./train_dir_multiLayers_imagenet_from_50000_learning_rate0.00001_reconfigGAccuracy_allowBiasBp_worker_replicas2_vgg_16/Retrain_Prunned_Network/iter130_pass ; CHECKPOINT_FILE=${CHECKPOINT_DIR}/model.ckpt-120 ; python eval_image_classifier.py --alsologtostderr --checkpoint_path=${CHECKPOINT_FILE} --dataset_dir=${DATASET_DIR} --dataset_name=flowers --dataset_split_name=validation --model_name=vgg_16 --labels_offset=1 --max_num_batches=50 #eval OK
+DATASET_DIR=/mllib/ImageNet/ILSVRC2012_tensorflow ; CHECKPOINT_DIR=./train_dir_multiLayers_imagenet_from_50000_learning_rate0.00001_reconfigGAccuracy_allowBiasBp_worker_replicas2_test_vgg_16/Retrain_Prunned_Network/iter5_pass ; CHECKPOINT_FILE=${CHECKPOINT_DIR}/model.ckpt-40 ; python eval_image_classifier.py --alsologtostderr --checkpoint_path=${CHECKPOINT_FILE} --dataset_dir=${DATASET_DIR} --dataset_name=imagenet --dataset_split_name=validation --model_name=vgg_16 --labels_offset=1 --max_num_batches=50 #eval OK

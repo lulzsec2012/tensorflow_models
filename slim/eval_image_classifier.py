@@ -88,6 +88,8 @@ def main(_):
   config = tf.ConfigProto()  
   config.gpu_options.allow_growth=True  
   sessGPU = tf.Session(config=config)  
+  sessGPUx = tf.Session(config=tf.ConfigProto(log_device_placement=True))
+
 
   if not FLAGS.dataset_dir:
     raise ValueError('You must supply the dataset directory with --dataset_dir')
