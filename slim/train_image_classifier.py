@@ -630,8 +630,8 @@ def main(_):
   ##config = tf.ConfigProto()  
   ##config.gpu_options.allow_growth=True  
   ##sessGPU = tf.Session(config=config)  
-  sessGPU = tf.Session(config=tf.ConfigProto(log_device_placement=True))
-  sess = tf.Session(config=tf.ConfigProto(gpu_options=tf.GPUOptions(allow_growth=True)))
+  #sessGPU = tf.Session(config=tf.ConfigProto(log_device_placement=True))
+  #sess = tf.Session(config=tf.ConfigProto(gpu_options=tf.GPUOptions(allow_growth=True)))
   print("FLAGS.max_number_of_steps:",FLAGS.max_number_of_steps)
   print("FLAGS.learning_rate:",FLAGS.learning_rate)
   print("FLAGS.weight_decay:",FLAGS.weight_decay)

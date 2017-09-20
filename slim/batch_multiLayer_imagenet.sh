@@ -877,16 +877,6 @@ function pruning_and_retrain_multilayers_iter()
 	echo "is_preTry_Pass="$is_preTry_Pass
 	echo "train_dir/checkpoint:"$train_dir/checkpoint
     done 
-    let "count_preTry_Pass=count_preTry_Pass*4"
-    echo "count_preTry_Pass="$count_preTry_Pass
-    if [ $count_preTry_Pass -lt $pruning_layers_num ] 
-    then
-	echo "g_Accuracy_thr is too high!"
-	echo "current g_preAccuracy is $g_preAccuracy ; set g_preAccuracy to $g_Accuracy !"
-	echo "current g_preRecall_5 is $g_preRecall_5 ; set g_preRecall_5 to $g_Recall_5 !"
-	g_preAccuracy=$g_Accuracy
-	g_preRecall_5=$g_Recall_5
-    fi
     if [ $count_stepzero -lt $pruning_layers_num ] #check if all pruning_steps all zero.
     then 
 	if [ ! -d ${train_dir}_pass ]
