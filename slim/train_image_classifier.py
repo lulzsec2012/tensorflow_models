@@ -515,6 +515,7 @@ def apply_pruning_to_var(variables_to_pruning,sess):
       else:
         print("skip sort")
         index=-1
+        continue
       print("index=",index)
       if index < 0:
         index = 0
@@ -596,7 +597,7 @@ def get_variables_to_pruning():
   count=0
   for scope in scopes:
     if FLAGS.pruning_rates is None:
-      rate=0.2
+      rate=0.8
     else:
       rate=rates[count]
     scopes[count]=(scope,rate)
