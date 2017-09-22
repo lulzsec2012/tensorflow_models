@@ -809,7 +809,9 @@ function pruning_and_retrain_multilayers_iter()
     fi
     
     local cnt=0
+    local count_stepzero=0
     local count_preTry_Pass=0
+    local pruning_layers_num=`echo $pruning_layers_index | awk -F " " '{print NF}'`
     is_preTry_Pass="True"
     for col in $pruning_layers_index
     do
@@ -859,7 +861,8 @@ function pruning_and_retrain_multilayers_iter()
 	if [ ${no_dot_dir%%/*} = "train_dir_shm" ]
 	then
 	    ls $train_dir/../ | grep iter | grep -v `basename $train_dir` | grep -v `basename $checkpoint_dir` | xargs -i mv {} ./${train_dir_disk}/ -rf
-	fi	
+	fi
+	
 	echo "ls $train_dir ; grep used"
 	ls `dirname $train_dir` | grep  `basename $train_dir`
 	ls `dirname $train_dir` | grep  `basename $checkpoint_dir` 
@@ -1001,7 +1004,7 @@ function pruning_and_retrain_multilayers()
 
 
 checkpoint_path=./mnist_Train_from_Scratch_lenet/Retrain_from_Scratch/model.ckpt-15500
-TRAIN_DIR_PREFIX=./train_dir_multiLayers_OK_231_xxx
+TRAIN_DIR_PREFIX=./train_dir_multiLayers_OK_231_xxx_userless
 train_Dir=${TRAIN_DIR_PREFIX}_${MODEL_NAME}/Retrain_Prunned_Network
 dir=`dirname $checkpoint_path`
 echo $dir
@@ -1020,7 +1023,6 @@ cp $0 $train_Dir
 echo "#####################################################################"
 
 
-
 #enovke
 all_trainable_scopes="LeNet/fc4,LeNet/fc3,LeNet/conv2,LeNet/conv1"
 max_iters=20
@@ -1033,8 +1035,8 @@ echo "##########################################################################
 echo "eval pruning_and_retrain_multilayers configs:"$all_trainable_scopes $max_iters $allow_pruning_loss $train_Dir $checkpoint_path \
                    "$pruning_layers_index" $pruning_rate_drop_step $pruning_singlelayer_retrain_step $pruning_multilayers_retrain_step
 echo "################################################################################################################################"
-#set_iter_steps $all_trainable_scopes $pruning_rate_drop_step
-#pruning_and_retrain_multilayers $all_trainable_scopes $max_iters $allow_pruning_loss $train_Dir $checkpoint_path "$pruning_layers_index" $pruning_rate_drop_step $pruning_singlelayer_retrain_step $pruning_multilayers_retrain_step
+set_iter_steps $all_trainable_scopes $pruning_rate_drop_step
+pruning_and_retrain_multilayers $all_trainable_scopes $max_iters $allow_pruning_loss $train_Dir $checkpoint_path "$pruning_layers_index" $pruning_rate_drop_step $pruning_singlelayer_retrain_step $pruning_multilayers_retrain_step
 
 
 
@@ -1050,8 +1052,8 @@ echo "##########################################################################
 echo "eval pruning_and_retrain_multilayers configs:"$all_trainable_scopes $max_iters $allow_pruning_loss $train_Dir $checkpoint_path \
                    "$pruning_layers_index" $pruning_rate_drop_step $pruning_singlelayer_retrain_step $pruning_multilayers_retrain_step
 echo "################################################################################################################################"
-#set_iter_steps $all_trainable_scopes $pruning_rate_drop_step
-#pruning_and_retrain_multilayers $all_trainable_scopes $max_iters $allow_pruning_loss $train_Dir $checkpoint_path "$pruning_layers_index" $pruning_rate_drop_step $pruning_singlelayer_retrain_step $pruning_multilayers_retrain_step
+set_iter_steps $all_trainable_scopes $pruning_rate_drop_step
+pruning_and_retrain_multilayers $all_trainable_scopes $max_iters $allow_pruning_loss $train_Dir $checkpoint_path "$pruning_layers_index" $pruning_rate_drop_step $pruning_singlelayer_retrain_step $pruning_multilayers_retrain_step
 
 
 #enovke
@@ -1067,8 +1069,8 @@ echo "##########################################################################
 echo "eval pruning_and_retrain_multilayers configs:"$all_trainable_scopes $max_iters $allow_pruning_loss $train_Dir $checkpoint_path \
                    "$pruning_layers_index" $pruning_rate_drop_step $pruning_singlelayer_retrain_step $pruning_multilayers_retrain_step
 echo "################################################################################################################################"
-#set_iter_steps $all_trainable_scopes $pruning_rate_drop_step
-#pruning_and_retrain_multilayers $all_trainable_scopes $max_iters $allow_pruning_loss $train_Dir $checkpoint_path "$pruning_layers_index" $pruning_rate_drop_step $pruning_singlelayer_retrain_step $pruning_multilayers_retrain_step
+set_iter_steps $all_trainable_scopes $pruning_rate_drop_step
+pruning_and_retrain_multilayers $all_trainable_scopes $max_iters $allow_pruning_loss $train_Dir $checkpoint_path "$pruning_layers_index" $pruning_rate_drop_step $pruning_singlelayer_retrain_step $pruning_multilayers_retrain_step
 
 
 #enovke
@@ -1083,7 +1085,7 @@ echo "##########################################################################
 echo "eval pruning_and_retrain_multilayers configs:"$all_trainable_scopes $max_iters $allow_pruning_loss $train_Dir $checkpoint_path \
                    "$pruning_layers_index" $pruning_rate_drop_step $pruning_singlelayer_retrain_step $pruning_multilayers_retrain_step
 echo "################################################################################################################################"
-#set_iter_steps $all_trainable_scopes $pruning_rate_drop_step
+set_iter_steps $all_trainable_scopes $pruning_rate_drop_step
 pruning_and_retrain_multilayers $all_trainable_scopes $max_iters $allow_pruning_loss $train_Dir $checkpoint_path "$pruning_layers_index" $pruning_rate_drop_step $pruning_singlelayer_retrain_step $pruning_multilayers_retrain_step
 
 exit 0
