@@ -62,23 +62,31 @@ evalt_net_args="--alsologtostderr  --dataset_dir=${DATASET_DIR} --dataset_name=$
 
 #Real eval command: python3 train_image_classifier.py --noclone_on_cpu --optimizer=sgd --labels_offset=0 --dataset_dir=/tmp/mnist             --dataset_name=mnist --dataset_split_name=train --model_name=lenet 	    --save_summaries_secs=250 --checkpoint_path=./train_dir_multiLayers_OK_231_xxx_userless_lenet/Retrain_Prunned_Network/iter5_pass/model.ckpt-20 --train_dir=./train_dir_multiLayers_OK_231_xxx_userless_lenet/Retrain_Prunned_Network/iter5 --trainable_scopes=LeNet/fc4,LeNet/fc3,LeNet/conv2,LeNet/conv1 --pruning_scopes=LeNet/fc4,LeNet/fc3,LeNet/conv2,LeNet/conv1 --pruning_rates=1.00,1.00,.20,.20 --max_number_of_steps=40 --pruning_strategy=ABS --log_every_n_steps=50 --save_interval_secs=600 --momentum=0.9 --end_learning_rate=0.00001 --learning_rate=0.001 --weight_decay=0.0005 --batch_size=64 	    --max_number_of_steps=30 --pruning_gradient_update_ratio=0 --num_clones=1
 
-train_dir=/tmp/prune
+train_dir=./tmp/prune
 checkpoint_path=./mnist_Train_from_Scratch_lenet/Retrain_from_Scratch/model.ckpt-15500
 check_dir=../mnist_Train_from_Scratch_lenet/Retrain_from_Scratch/model.ckpt-15500
 max_number_of_steps=100
 all_trainable_scopes="LeNet/fc4,LeNet/fc3,LeNet/conv2,LeNet/conv1"
-pruning_scopes=$all_trainable_scopes
+trainable_scopes=$all_trainable_scopes
+pruning_scopes="LeNet/conv2,LeNet/conv1"
 pruning_rates="0.8,0.8"
-trainable_scopes="LeNet/conv2,LeNet/conv1"
+
 function train_program()
 {
-    cmd_str="--train_dir=$train_dir --checkpoint_path=$check_dir --max_number_of_steps=$max_number_of_steps\
+    local train_dir=$1
+    local check_dir=$2
+    local max_number_of_steps=$3
+    local pruning_scopes=$4
+    local pruning_rates=$5
+    local trainable_scopes=$6
+    local prune_net_args=$7
+    local cmd_str="--train_dir=$train_dir --checkpoint_path=$check_dir --max_number_of_steps=$max_number_of_steps\
              --pruning_scopes=$pruning_scopes --pruning_rates=$pruning_rates --trainable_scopes=$trainable_scopes"
     echo $cmd_str $prune_net_args
+    
     python3 ../train_image_classifier.py  $cmd_str $prune_net_args
 }
-train_program
-exit 0
+
 #train_dir check_dir fdata_dir tdata_dir max_steps 
 #pruning_scopes pruning_rates train_scopes 
 function next_CHECKPOINT_PATH()
@@ -92,7 +100,12 @@ function next_CHECKPOINT_PATH()
     _ckpt_=`cat $train_dir/checkpoint | grep -v all_model_checkpoint_paths | awk '{print $2}'`
     ckpt_=${_ckpt_#\"}
     ckpt=${ckpt_%\"}
-    checkpoint_path=$train_dir/$ckpt
+    if [ ${train_dir:0:1} = "/" ]
+    then
+	checkpoint_path=$ckpt
+    else
+	checkpoint_path=$train_dir/$ckpt
+    fi
     echo $checkpoint_path
 }
 
@@ -124,12 +137,18 @@ function get_Accuracy()
 
 #train_dir evalt_loss_anc evalt_loss_thr evalt_loss_drp 
 #g_evalt_loss_pass
+#train_dir=/tmp/prune
+evalt_loss_anc=9900
+evalt_loss_drp=50
+
 function evalt_program()
 {
+    local train_dir=$1
     local tmp_checkpoint_path=`next_CHECKPOINT_PATH $train_dir`
     local edata_dir=${train_dir}/eval_event
     cmd_str="--checkpoint_path=${tmp_checkpoint_path}  --eval_dir=$edata_dir"   
-    local result_str=`../python eval_image_classifier.py  $evalt_net_args   2>&1 | grep logging`
+    echo $cmd_str $evalt_net_args
+    local result_str=`python3 ../eval_image_classifier.py  $cmd_str $evalt_net_args   2>&1 | grep logging`
     g_Accuracy=`get_Accuracy $result_str`
     g_Recall_5=`get_Recall_5 $result_str`
     echo "g_Accuracy="$g_Accuracy
@@ -153,3 +172,5 @@ function evalt_program()
 	return 0
     fi
 }
+
+#evalt_program

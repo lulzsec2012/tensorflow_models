@@ -13,7 +13,7 @@ DEFAULT_MAX_NUMBER_OF_STEPS=200
 DATASET_SPLIT_NAME_FOR_VAL=validation  #for vgg
 #DATASET_SPLIT_NAME_FOR_VAL=test #for mnist
 
-NUM_CLONES=1
+NUM_CLONES=2
 #####################################################
 #           Pruning and Retrain Config
 #####################################################
@@ -1004,7 +1004,7 @@ function pruning_and_retrain_multilayers()
 
 
 checkpoint_path=./VGG_16_RETRAIN_FOR_CONVERGENCE_SGD_20000/model.ckpt-20000
-TRAIN_DIR_PREFIX=./train_dir_multiLayers_imagenet_from_SGD_20000_learning_rate0.001_reconfigGAccuracy_allowBiasBp_worker_replicas2_test_230
+TRAIN_DIR_PREFIX=./train_dir_multiLayers_imagenet_from_SGD_20000_learning_rate0.00001_reconfigGAccuracy_allowBiasBp_worker_replicas2_test_230
 train_Dir=${TRAIN_DIR_PREFIX}_${MODEL_NAME}/Retrain_Prunned_Network
 dir=`dirname $checkpoint_path`
 echo $dir
@@ -1030,7 +1030,7 @@ pruning_layers_index="0 1 2"
 allow_pruning_loss=50
 pruning_rate_drop_step=0.16
 pruning_singlelayer_retrain_step=10
-pruning_multilayers_retrain_step=10000
+pruning_multilayers_retrain_step=10
 echo "################################################################################################################################"
 echo "eval pruning_and_retrain_multilayers configs:"$all_trainable_scopes $max_iters $allow_pruning_loss $train_Dir $checkpoint_path \
                    "$pruning_layers_index" $pruning_rate_drop_step $pruning_singlelayer_retrain_step $pruning_multilayers_retrain_step
@@ -1038,7 +1038,22 @@ echo "##########################################################################
 set_iter_steps $all_trainable_scopes $pruning_rate_drop_step
 pruning_and_retrain_multilayers $all_trainable_scopes $max_iters $allow_pruning_loss $train_Dir $checkpoint_path "$pruning_layers_index" $pruning_rate_drop_step $pruning_singlelayer_retrain_step $pruning_multilayers_retrain_step
 
-
+#enovke
+all_trainable_scopes="vgg_16/fc8,vgg_16/fc7,vgg_16/fc6,vgg_16/conv5/conv5_3,vgg_16/conv5/conv5_2,vgg_16/conv5/conv5_1,vgg_16/conv4/conv4_3,vgg_16/conv4/conv4_2,vgg_16/conv4/conv4_1,vgg_16/conv3/conv3_3,vgg_16/conv3/conv3_2,vgg_16/conv3/conv3_1,vgg_16/conv2/conv2_2,vgg_16/conv2/conv2_1,vgg_16/conv1/conv1_2,vgg_16/conv1/conv1_1"
+max_iters=1
+pruning_layers_index="0"
+allow_pruning_loss=50
+pruning_rate_drop_step=0.04
+pruning_singlelayer_retrain_step=10
+pruning_multilayers_retrain_step=10000
+EVAL_INTERVAL=1000
+echo "################################################################################################################################"
+echo "eval pruning_and_retrain_multilayers configs:"$all_trainable_scopes $max_iters $allow_pruning_loss $train_Dir $checkpoint_path \
+                   "$pruning_layers_index" $pruning_rate_drop_step $pruning_singlelayer_retrain_step $pruning_multilayers_retrain_step
+echo "################################################################################################################################"
+set_iter_steps $all_trainable_scopes $pruning_rate_drop_step
+pruning_and_retrain_multilayers $all_trainable_scopes $max_iters $allow_pruning_loss $train_Dir $checkpoint_path "$pruning_layers_index" $pruning_rate_drop_step $pruning_singlelayer_retrain_step $pruning_multilayers_retrain_step
+EVAL_INTERVAL=20
 
 #enovke
 all_trainable_scopes="vgg_16/fc8,vgg_16/fc7,vgg_16/fc6,vgg_16/conv5/conv5_3,vgg_16/conv5/conv5_2,vgg_16/conv5/conv5_1,vgg_16/conv4/conv4_3,vgg_16/conv4/conv4_2,vgg_16/conv4/conv4_1,vgg_16/conv3/conv3_3,vgg_16/conv3/conv3_2,vgg_16/conv3/conv3_1,vgg_16/conv2/conv2_2,vgg_16/conv2/conv2_1,vgg_16/conv1/conv1_2,vgg_16/conv1/conv1_1"
@@ -1047,7 +1062,7 @@ pruning_layers_index="3 4 5 6 7 8 9 10 11 12 13 14 15"
 allow_pruning_loss=100
 pruning_rate_drop_step=0.16
 pruning_singlelayer_retrain_step=10
-pruning_multilayers_retrain_step=10000
+pruning_multilayers_retrain_step=10
 echo "################################################################################################################################"
 echo "eval pruning_and_retrain_multilayers configs:"$all_trainable_scopes $max_iters $allow_pruning_loss $train_Dir $checkpoint_path \
                    "$pruning_layers_index" $pruning_rate_drop_step $pruning_singlelayer_retrain_step $pruning_multilayers_retrain_step
@@ -1071,7 +1086,7 @@ echo "eval pruning_and_retrain_multilayers configs:"$all_trainable_scopes $max_i
 echo "################################################################################################################################"
 set_iter_steps $all_trainable_scopes $pruning_rate_drop_step
 pruning_and_retrain_multilayers $all_trainable_scopes $max_iters $allow_pruning_loss $train_Dir $checkpoint_path "$pruning_layers_index" $pruning_rate_drop_step $pruning_singlelayer_retrain_step $pruning_multilayers_retrain_step
-
+EVAL_INTERVAL=20
 
 #enovke
 all_trainable_scopes="vgg_16/fc8,vgg_16/fc7,vgg_16/fc6,vgg_16/conv5/conv5_3,vgg_16/conv5/conv5_2,vgg_16/conv5/conv5_1,vgg_16/conv4/conv4_3,vgg_16/conv4/conv4_2,vgg_16/conv4/conv4_1,vgg_16/conv3/conv3_3,vgg_16/conv3/conv3_2,vgg_16/conv3/conv3_1,vgg_16/conv2/conv2_2,vgg_16/conv2/conv2_1,vgg_16/conv1/conv1_2,vgg_16/conv1/conv1_1"

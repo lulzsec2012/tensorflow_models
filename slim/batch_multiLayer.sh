@@ -120,10 +120,8 @@ function next_CHECKPOINT_PATH()
 	echo "Error:File $train_dir/checkpoint do not exit!"
 	exit -1
     fi
-    _ckpt_=`cat $train_dir/checkpoint | grep -v all_model_checkpoint_paths | awk '{print $2}'`
-    ckpt_=${_ckpt_#\"}
-    ckpt=${ckpt_%\"}
-    checkpoint_path=$train_dir/$ckpt
+    local ckpt_num=`cat $train_dir/checkpoint | grep -v all_model_checkpoint_paths | awk -F "-" '{print $2}' | awk -F "\"" '{print $1}'` 
+    checkpoint_path=$train_dir/model.ckpt-$ckpt_num
     echo $checkpoint_path
 }
 
@@ -773,12 +771,16 @@ function pruning_and_retrain_multilayers_iter()
 
 
     local checkpoint_dir=`get_iter_checkpoint_dir $train_Dir $checkpoint_Path $iter $all_trainable_scopes`
+    set -x
     local checkpoint_path=`next_CHECKPOINT_PATH $checkpoint_dir`
-
+    set +x
+    echo "checkpoint_dir="$checkpoint_dir
+    echo "checkpoint_path="$checkpoint_path
     local train_dir=${train_Dir}/iter$iter
     rm $train_dir/* -rf
     mkdir -p $train_dir
     checkpoint_dir=`dirname $checkpoint_path`
+    echo "checkpoint_dir="$checkpoint_dir
     cp ${checkpoint_dir}/iter_Rates.txt $train_dir
     cp ${checkpoint_dir}/iter_Steps.txt $train_dir
     ckhp_iter_Rates_txt="${train_dir}/iter_Rates.txt"
@@ -1004,7 +1006,7 @@ function pruning_and_retrain_multilayers()
 
 
 checkpoint_path=./mnist_Train_from_Scratch_lenet/Retrain_from_Scratch/model.ckpt-15500
-TRAIN_DIR_PREFIX=./train_dir_multiLayers_OK_231_xxx_userless
+TRAIN_DIR_PREFIX=/run/shm/train_dir_multiLayers_OK_231_FC
 train_Dir=${TRAIN_DIR_PREFIX}_${MODEL_NAME}/Retrain_Prunned_Network
 dir=`dirname $checkpoint_path`
 echo $dir
