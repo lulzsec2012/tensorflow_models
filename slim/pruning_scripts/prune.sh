@@ -36,26 +36,6 @@ g_starting_pruning_step=0.10
 #              Algorithm Configs
 #####################################################
 
-#*Algorithm:REPRUNING_FROM_SPECIFIC_LAYER*#
-En_REPRUNING_FROM_SPECIFIC_LAYER="Disable" #["Enable":"Disable"]
-REPRUNING_FROM_LAYER_TH=0
-
-#*Algorithm:AUTO_DRAW_BACK_WHILE_PRUNING*#
-
-
-#*Algorithm:AUTO_RATE_PRUNING_WITHOUT_TRAINING*#
-En_AUTO_RATE_PRUNING_WITHOUT_RETRAIN="Enable" #["Enable":"Disable"]
-
-
-En_A_Retrain_for_ImageNet="Disable" #["Enable":"Disable"]
-
-#*Algorithm:AUTO_RATE_PRUNING_EARLY_SKIP*#
-En_AUTO_RATE_PRUNING_EARLY_SKIP="Enable" #["Enable":"Disable"]
-
-
-
-
-
 prune_net_args="--noclone_on_cpu --optimizer=sgd --labels_offset=$LABELS_OFFSET --dataset_dir=${DATASET_DIR} --dataset_name=$DATASET_NAME --dataset_split_name=train --model_name=$MODEL_NAME \
 	--save_summaries_secs=$SAVE_SUMMARIES_SECS --pruning_gradient_update_ratio=0  --pruning_strategy=ABS \
         --log_every_n_steps=50 --save_interval_secs=600 --momentum=0.9 --end_learning_rate=0.00001 --learning_rate=0.001 --weight_decay=0.0005 --batch_size=64 \
@@ -63,33 +43,6 @@ prune_net_args="--noclone_on_cpu --optimizer=sgd --labels_offset=$LABELS_OFFSET 
 
 evalt_net_args="--alsologtostderr  --dataset_dir=${DATASET_DIR} --dataset_name=$DATASET_NAME --dataset_split_name=$DATASET_SPLIT_NAME_FOR_VAL --model_name=$MODEL_NAME --max_num_batches=50" #all_trainable_scopes
 
-train_dir=./tmp/prune
-checkpoint_path=./mnist_Train_from_Scratch_lenet/Retrain_from_Scratch/model.ckpt-15500
-check_dir=../mnist_Train_from_Scratch_lenet/Retrain_from_Scratch/model.ckpt-15500
-max_number_of_steps=100
-all_trainable_scopes="LeNet/fc4,LeNet/fc3,LeNet/conv2,LeNet/conv1"
-trainable_scopes=$all_trainable_scopes
-pruning_scopes="LeNet/conv2,LeNet/conv1"
-pruning_rates="0.8,0.8"
-
-function train_program()
-{
-    local train_dir=$1
-    local check_dir=$2
-    local max_number_of_steps=$3
-    local pruning_scopes=$4
-    local pruning_rates=$5
-    local trainable_scopes=$6
-    local prune_net_args=$7
-    local cmd_str="--train_dir=$train_dir --checkpoint_path=$check_dir --max_number_of_steps=$max_number_of_steps\
-             --pruning_scopes=$pruning_scopes --pruning_rates=$pruning_rates --trainable_scopes=$trainable_scopes"
-    echo $cmd_str $prune_net_args
-    
-    python3 ../train_image_classifier.py  $cmd_str $prune_net_args
-}
-
-#train_dir check_dir fdata_dir tdata_dir max_steps 
-#pruning_scopes pruning_rates train_scopes 
 function next_CHECKPOINT_PATH()
 {
     local train_dir=$1    
@@ -101,13 +54,25 @@ function next_CHECKPOINT_PATH()
     _ckpt_=`cat $train_dir/checkpoint | grep -v all_model_checkpoint_paths | awk '{print $2}'`
     ckpt_=${_ckpt_#\"}
     ckpt=${ckpt_%\"}
-    if [ ${train_dir:0:1} = "/" ]
-    then
-	checkpoint_path=$ckpt
-    else
-	checkpoint_path=$train_dir/$ckpt
-    fi
+    checkpoint_path=$train_dir/$ckpt
     echo $checkpoint_path
+}
+
+function train_program()
+{
+    local train_dir=$1
+    local check_dir=$2
+    local max_number_of_steps=$3
+    local pruning_scopes=$4
+    local pruning_rates=$5
+    local trainable_scopes=$6
+    local prune_net_args=$7
+    local tmp_check_path=`next_CHECKPOINT_PATH $check_dir`
+    local cmd_str="--train_dir=$train_dir --checkpoint_path=$tmp_check_path --max_number_of_steps=$max_number_of_steps\
+             --pruning_scopes=$pruning_scopes --pruning_rates=$pruning_rates --trainable_scopes=$trainable_scopes"
+    echo $cmd_str $prune_net_args
+    
+    python3 ../train_image_classifier.py  $cmd_str $prune_net_args
 }
 
 function get_Recall_5()
@@ -243,8 +208,9 @@ function prune_and_evalt_step()
     local prune_net_args=$7
     local evalt_interval=$8
     local g_early_skip=$9
+
     local max_number_of_steps=0
-    for((step=10;step<$max_steps;step+=$evalt_interval))
+    for((step=10;step<=$max_steps;step+=$evalt_interval))
     do
 	echo "prune_and_evalt_step::step="$step "evalt_interval="$evalt_interval
 	prune_net $1 $2 $step $4 $5 $6 "$prune_net_args" 
@@ -258,7 +224,7 @@ function prune_and_evalt_step()
 	    step=0
 	fi
     done
-    if [  $g_evalt_loss_pass = "True" ]
+    if [ $g_evalt_loss_pass = "True" ]
     then
 	return 0
     else
@@ -266,32 +232,101 @@ function prune_and_evalt_step()
     fi
 }
 
-train_dir=./tmp/prune
-checkpoint_path=./mnist_Train_from_Scratch_lenet/Retrain_from_Scratch/model.ckpt-15500
-check_dir=../mnist_Train_from_Scratch_lenet/Retrain_from_Scratch/model.ckpt-15500
-max_number_of_steps=200
-all_trainable_scopes="LeNet/fc4,LeNet/fc3,LeNet/conv2,LeNet/conv1"
-trainable_scopes=$all_trainable_scopes
-pruning_scopes="LeNet/conv2,LeNet/conv1"
-pruning_rates="0.8,0.8"
-evalt_interval=50
-g_early_skip="False"
-pruning_layers_index="0 1"
-#prune_and_evalt_step $train_dir $check_dir $max_number_of_steps $pruning_scopes $pruning_rates $trainable_scopes "$prune_net_args" $evalt_interval $g_early_skip
-exit 0
-#pruning_scopes pruning_rate_drop_step pruning_singlelayer_retrain_step pruning_multilayers_retrain_step
-#pruning_layers_index="0 1 2 3"
-####################################################
-function get_cur_iter() 
+
+function max()
 {
-    local ckhp_iter_PC_txt=$1
-    cur_iter=1
-    if [ -f $ckhp_iter_PC_txt ]
+    local numA=$1
+    local numB=$2
+    echo `awk -v numa=$numA -v numb=$numB 'BEGIN{print(numa-numb>0.0001)? numa : numb }'`
+}
+
+function get_current_iter_major()
+{
+    local data_dir=${1:-data}
+    local _Max=0
+    mkdir -p $data_dir
+    for file in `\ls $data_dir | grep iter | grep "-"`
+    do
+	num=`echo $file | awk -F "iter" '{print $2}' | awk -F "-" '{print $1}'`
+	_Max=`max $_Max $num`
+	#echo $file $num  $_Max  
+    done 
+    echo "$_Max"
+}
+
+function get_current_iter_minor()
+{
+    local data_dir=${1:-data}
+    local iter_major=$2
+    local _Max=100
+    mkdir -p $data_dir
+    for file in `\ls $data_dir | grep "iter${iter_major}"`
+    do
+	num=`echo $file | awk -F "-" '{print $2}'`
+	_Max=`max $_Max $num`
+	#echo $file $num  $_Max  
+    done 
+    echo "$_Max"
+}
+
+
+function write_to_file()
+{
+    filename=$1
+    content=$2
+    mkdir -p `dirname $filename`
+    echo "write_to_file::filename=$1"
+    echo "write_to_file::content=$2"
+    exec 8<&1
+    exec > $filename
+    echo $content
+    exec 1<&8
+    exec 8<&-
+}
+
+function read_from_file()
+{
+    filename=$1
+    if ! [ -f $filename ]
     then
-	cur_iter=`read_from_file $ckhp_iter_PC_txt`
-	let "cur_iter+=1"
+        echo "Error:File $filename do not exit!"
+        exit -1
     fi
-    echo "$cur_iter"
+    exec <$filename
+    read rates
+    echo "$rates"
+}
+
+function get_str()
+{
+    local str=$1     
+    local index=$2
+    let "index=index+1"
+    substr=`echo "$str" | awk -v col=$index -F "," '{print $col}'`
+    echo "$substr"
+}
+
+function modify_str()
+{
+    local str=$1    
+    local index=$2
+    let "index=index+1"
+    local substr=$3 
+                    
+    local NF=`echo "$str" | awk -F "," '{print NF}'`
+    local _rates=""
+    for((i=1;i<=$NF;i+=1))
+    do
+	cursubstr=`echo "$str" | awk -v col=$i -F "," '{print $col}'`
+	if [ $i -eq $index ]
+	then
+	    _rates=$_rates,$substr
+	else
+	    _rates=$_rates,$cursubstr
+	fi
+    done
+    _rates=${_rates#,}
+    echo "$_rates"
 }
 
 function get_cur_number_of_steps()
@@ -304,127 +339,57 @@ function get_cur_number_of_steps()
     fi
     echo "$cur_number_of_steps"
 }
-
-function get_iter_checkpoint_dir()
+#pruning_scopes pruning_rate_drop_step pruning_singlelayer_retrain_step pruning_multilayers_retrain_step
+#pruning_layers_index="0 1 2 3"
+function prune_and_evalt_scope()
 {
-    local train_Dir=$1
-    local checkpoint_path=$2
-    local cur_iter=$3
-    local all_trainable_scopes=$4
-    let "pre_iter=cur_iter-1"
-    local checkpoint_dir=${train_Dir}/iter${pre_iter}_pass 
-    if [ $cur_iter -eq 1 ]
+    local train_dir=$1
+    local check_dir=$2
+    local max_steps=$3
+    local trainable_scopes=$4
+    local prune_net_args=$5
+    local evalt_interval=$6
+    local g_early_skip=$7
+    local pruning_layers_index=$8
+    local pruning_singlelayer_prtrain_step=$9 
+    local pruning_singlelayer_retrain_step=${10}
+    local pruning_multilayers_retrain_step=${11}
+    fdata_dir=./result
+    iter_major=`get_current_iter_major $fdata_dir`
+    iter_minor=`get_current_iter_minor $fdata_dir $iter_major`
+    echo "the number of params:$#"
+    echo "params:$@"
+    echo "iter_major="$iter_major
+    echo "iter_minor="$iter_minor
+    echo "pruning_singlelayer_prtrain_step="$pruning_singlelayer_prtrain_step
+    if [ $iter_major -eq 0 -a $iter_minor -eq 100 ]
     then
-	local ori_dir=`dirname $checkpoint_path`
-	mkdir -p ${train_Dir}
-	cp $ori_dir $checkpoint_dir  -rf
-	
-	local all_trainable_scopes_num=`echo $all_trainable_scopes | awk -F "," '{print NF}'`
-	cur_rates="$g_starting_pruning_rate"
-	cur_steps="$g_starting_pruning_step"
-	for((i=1;i<$all_trainable_scopes_num;i+=1))
-	do
-	    cur_rates="$cur_rates,$g_starting_pruning_rate"    
-	    cur_steps="$cur_steps,$g_starting_pruning_step"    
-	done
-	write_to_file ${checkpoint_dir}/iter_Rates.txt $cur_rates 2>&1 >> /dev/null
-	write_to_file ${checkpoint_dir}/iter_Steps.txt $cur_steps 2>&1 >> /dev/null
+	mkdir -p ${fdata_dir}/iter0-100
+	cp ${check_dir}/* ${fdata_dir}/iter0-100 -r
+	check_dir=${fdata_dir}/iter0-100
+    else
+	check_dir=${fdata_dir}/iter${iter_major}-${iter_minor}_pass
     fi
-    echo "$checkpoint_dir"
-}
-
-function is_substr()
-{
-    string=$1
-    substr=$2
-
-    local elem_num=`echo $string | awk -F "," '{print NF}'`
-    local ii=0
-    for((ii=1;ii<=$elem_num;ii+=1))
-    do
-	local elem=`echo $string | awk -v ith=$ii -F "," '{print $ith}'`
-	if [ $elem -eq $substr ]
-	then
-	    echo "is_substr:elem="$elem
-	    echo "is_substr:string="$string
-	    return 0
-	fi
-    done
-    return 1
-}
-
-function pruning_and_retrain_multilayers_iter()
-{
-    local all_trainable_scopes=$1 
-    local iter=$2
-    local allow_pruning_loss=$3 #0.2%*100
-    local train_Dir=$4
-    local checkpoint_Path=$5
-    local pruning_layers_index=$6
-    local pruning_singlelayer_retrain_step=$7
-    local pruning_multilayers_retrain_step=$8
-    En_AUTO_RATE_PRUNING_EARLY_SKIP="Enable"
-  
-    let "g_Accuracy_thr=g_preAccuracy-allow_pruning_loss"
-    let "g_Recall_5_thr=g_preRecall_5-allow_pruning_loss"
-
-    ckhp_iter_PC_txt=${train_Dir}/ckhp_iter_PC.txt
-    if [ $iter -eq -1 -o $iter -eq 0 ]
-    then
-	iter=`get_cur_iter $ckhp_iter_PC_txt`  ##auto get the current iter ; if not, use $2 instead.
-    fi
-
-
-    local checkpoint_dir=`get_iter_checkpoint_dir $train_Dir $checkpoint_Path $iter $all_trainable_scopes`
-    local checkpoint_path=`next_CHECKPOINT_PATH $checkpoint_dir`
-
-    local train_dir=${train_Dir}/iter$iter
-    rm $train_dir/* -rf
     mkdir -p $train_dir
-    checkpoint_dir=`dirname $checkpoint_path`
-    cp ${checkpoint_dir}/iter_Rates.txt $train_dir
-    cp ${checkpoint_dir}/iter_Steps.txt $train_dir
+    cp ${check_dir}/iter_Rates.txt $train_dir
+    cp ${check_dir}/iter_Steps.txt $train_dir
     ckhp_iter_Rates_txt="${train_dir}/iter_Rates.txt"
     ckhp_iter_Steps_txt="${train_dir}/iter_Steps.txt"
-
-    echo "##############################"
-    echo "multilayers_iter:iter="$iter
-    echo "g_Accuracy_thr=$g_Accuracy_thr" ##
-    En_AUTO_RATE_PRUNING_EARLY_SKIP="Enable"
-
-    local pruning_layers_num=`echo $pruning_layers_index | awk -F " " '{print NF}'`
-    local count_stepzero=0
-    for col in $pruning_layers_index
+    cur_steps="$g_starting_pruning_step"
+    cur_rates="$g_starting_pruning_rate"
+    local all_trainable_scopes_num=`echo $all_trainable_scopes | awk -F "," '{print NF}'`
+    for((i=1;i<$all_trainable_scopes_num;i+=1))
     do
-	pruning_steps=`read_from_file $ckhp_iter_Steps_txt`	
-	pruning_step=`get_str $pruning_steps $col`
-	smaller=`awk -v numa=0.01 -v numb=$pruning_step 'BEGIN{print(numa>numb)?"1":"0"}'`
-	if [ $smaller -eq 1 ]
-	then
-	    let "count_stepzero+=1"
-	fi
+	cur_steps="$cur_steps,$g_starting_pruning_step"    
+	cur_rates="$cur_rates,$g_starting_pruning_rate"    
     done
-    echo "count_stepzero="$count_stepzero "pruning_layers_num="$pruning_layers_num
-    if [ $count_stepzero -ge $pruning_layers_num ] #check if all pruning_steps all zero.
-    then
-	echo "Nothing can be done!"
-	return 0
-    fi
-    
-    local cnt=0
+    write_to_file $ckhp_iter_Rates_txt $cur_rates 2>&1 >> /dev/null
+    write_to_file $ckhp_iter_Steps_txt $cur_steps 2>&1 >> /dev/null
+
+
     local count_stepzero=0
-    local count_preTry_Pass=0
-    local pruning_layers_num=`echo $pruning_layers_index | awk -F " " '{print NF}'`
-    is_preTry_Pass="True"
     for col in $pruning_layers_index
     do
-	echo -e "\n\nmultilayers_iter:col=$col"
-	echo "train_dir="$train_dir
-	echo "checkpoint_path="$checkpoint_path
-	echo "all_trainable_scopes="$all_trainable_scopes
-	
-	echo "pruning_layers_index="$pruning_layers_index
-
 	pruning_rates=`read_from_file $ckhp_iter_Rates_txt`
 	echo "pruning_rates(passed)=$pruning_rates"
 	pruning_steps=`read_from_file $ckhp_iter_Steps_txt`
@@ -432,9 +397,18 @@ function pruning_and_retrain_multilayers_iter()
 	pruning_step=`get_str $pruning_steps $col`
 	pruning_rate=`echo "scale=2;$pruning_rate-$pruning_step/1.0"|bc`
 	echo "pruning_rate=$pruning_rate"
+	if [ $pruning_singlelayer_prtrain_step -gt 0 ]
+	then
+	    echo "prtrain: $1 $check_dir $pruning_singlelayer_prtrain_step $pruning_scopes $pruning_rates $4 "$5" $6 $7 "
+	    prune_and_evalt_step $1 $check_dir $pruning_singlelayer_prtrain_step $pruning_scopes $pruning_rates $4 "$5" $6 $7 
+	    rm $check_dir -rfv 
+	    mv $train_dir $check_dir -v
+	fi
+	is_preTry_Pass="True"
 	if [ $is_preTry_Pass = "True" ]
 	then
 	    pruning_rates=`modify_str $pruning_rates $col  $pruning_rate` 
+	    echo "pruning_rates(modified)=$pruning_rates"
 	fi
 	echo "pruning_steps=$pruning_steps"
 
@@ -442,56 +416,11 @@ function pruning_and_retrain_multilayers_iter()
 	echo "get_cur_number_of_steps:max_number_of_steps="$max_number_of_steps
 	let "max_number_of_steps+=pruning_singlelayer_retrain_step"
 
-	let "cnt+=1"
-	if [ $pruning_layers_num -eq $cnt ]
+	prune_and_evalt_step $1 $check_dir $pruning_singlelayer_retrain_step $pruning_scopes $pruning_rates $4 "$5" $6 $7 
+	if [ $? -eq 0 ]
 	then
-	    En_AUTO_RATE_PRUNING_EARLY_SKIP="Disable"
-	    let "max_number_of_steps+=pruning_multilayers_retrain_step"
-	fi
-	##
-	echo "train_dir="$train_dir
-	echo "checkpoint_path="$checkpoint_path
-	echo "ls $train_dir :"
-	no_dot_dir=${train_dir#*"./"}
-	train_dir_disk=${no_dot_dir#*/}
-	echo "ROOT DIR OF THE PROJECT:${no_dot_dir%%/*}"
-	
-	ls `dirname $train_dir`
-
-	echo "ls $train_dir ; grep iter pass -v used"
-	ls $train_dir/../ | grep iter | grep -v `basename $train_dir` | grep -v `basename $checkpoint_dir`
-	checkpoint_dir=`dirname $checkpoint_path`
-	if [ ${no_dot_dir%%/*} = "train_dir_shm" ]
-	then
-	    ls $train_dir/../ | grep iter | grep -v `basename $train_dir` | grep -v `basename $checkpoint_dir` | xargs -i mv {} ./${train_dir_disk}/ -rf
-	fi
-	
-	echo "ls $train_dir ; grep used"
-	ls `dirname $train_dir` | grep  `basename $train_dir`
-	ls `dirname $train_dir` | grep  `basename $checkpoint_dir` 
-	##
-
-
-	pruning_and_retrain_step_eval_multiLayer --checkpoint_path=${checkpoint_path}  --train_dir=${train_dir} \
-            --trainable_scopes=$all_trainable_scopes --pruning_scopes=$all_trainable_scopes \
-            --pruning_rates=$pruning_rates --max_number_of_steps=$max_number_of_steps --pruning_strategy=ABS \
-	    --log_every_n_steps=50 --save_interval_secs=600 --momentum=0.9 --end_learning_rate=0.00001 \
-            --learning_rate=0.001  --weight_decay=0.0005 --batch_size=64  #2>&1 >> /dev/null
-	if [ $? -ne 0 ]
-	then
-	    is_preTry_Pass="False"
-	    En_AUTO_RATE_PRUNING_EARLY_SKIP="Disable"
-	    pruning_rate=`echo "scale=2;$pruning_rate+$pruning_step/1.0"|bc`
-	    pruning_step=`echo "scale=2;$pruning_step/2.0"|bc`
-	    rm ${train_dir} -rf
-	    checkpoint_dir=`dirname $checkpoint_path`
-	    cp $checkpoint_dir ${train_dir} -rf
-	    pruning_steps=`modify_str $pruning_steps $col  $pruning_step` 
-	    write_to_file $ckhp_iter_Steps_txt "$pruning_steps"
-	    cp $ckhp_iter_Steps_txt $checkpoint_dir -rf
-	else
-	    is_preTry_Pass="True"
-	    En_AUTO_RATE_PRUNING_EARLY_SKIP="Enable"
+	    echo "prune_and_evalt_step pass"
+	    #TODO:update rates and steps
 	    let "count_preTry_Pass+=1"
 	    write_to_file $ckhp_iter_Rates_txt "$pruning_rates"
 	    smaller=`awk -v numa=$pruning_rate -v numb=$pruning_step 'BEGIN{print(numa-numb<0.001)?"1":"0"}'`
@@ -501,70 +430,48 @@ function pruning_and_retrain_multilayers_iter()
             fi
 	    pruning_steps=`modify_str $pruning_steps $col  $pruning_step` 
 	    write_to_file $ckhp_iter_Steps_txt "$pruning_steps"
-	    rm ${train_dir}_pass -rf
-	    cp ${train_dir} ${train_dir}_pass -rf
-	    checkpoint_path=`next_CHECKPOINT_PATH ${train_dir}_pass`
-	    write_to_file $ckhp_iter_PC_txt $iter
-	fi    
-	echo "is_preTry_Pass="$is_preTry_Pass
-	echo "train_dir/checkpoint:"$train_dir/checkpoint
-    done 
-    if [ $count_stepzero -lt $pruning_layers_num ] #check if all pruning_steps all zero. #useless
-    then 
-	if [ ! -d ${train_dir}_pass ]
-	then
-            let "pre_iter=iter-1"
-            echo "pre_iter:"$pre_iter
-            #cp ${train_Dir}/iter${pre_iter}_pass ${train_dir}_pass -rfv ####
-            mv ${train_Dir}/iter${pre_iter}_pass ${train_dir}_pass -fv ####
-            cp $ckhp_iter_Rates_txt ${train_dir}_pass -rf
-            cp $ckhp_iter_Steps_txt ${train_dir}_pass -rf
+	    rm $check_dir -rf 
+	    mv $train_dir $check_dir 
+	else
+	    echo "prune_and_evalt_step fail"
+	    rm $check_dir -rf 
+	    #TODO:update rates and steps
+	    pruning_rate=`echo "scale=2;$pruning_rate+$pruning_step/1.0"|bc`
+	    pruning_step=`echo "scale=2;$pruning_step/2.0"|bc`
+	    rm ${train_dir} -rf
+	    mkdir -p ${train_dir}
+	    pruning_steps=`modify_str $pruning_steps $col  $pruning_step` 
+	    write_to_file $ckhp_iter_Steps_txt "$pruning_steps"
 	fi
-	rm ${train_dir} -rf
-	write_to_file $ckhp_iter_PC_txt $iter
-    fi
-}
-
-####################################################
-function prune_and_evalt_scope()
-{
-    local train_dir=$1
-    local check_dir=$2
-    local max_steps=$3
-    #local pruning_scopes=$4
-    #local pruning_rates=$5
-    local trainable_scopes=$4
-    local prune_net_args=$5
-    local evalt_interval=$6
-    local g_early_skip=$7
-    local pruning_layers_index=$8
-
-    local pruning_layers_num=`echo $pruning_layers_index | awk -F " " '{print NF}'`
-    local count_stepzero=0
-    for col in $pruning_layers_index
-    do
-	pruning_rates=`read_from_file $ckhp_iter_Rates_txt`
-	echo "pruning_rates(passed)=$pruning_rates"
-	pruning_steps=`read_from_file $ckhp_iter_Steps_txt`
-	pruning_rate=`get_str $pruning_rates $col`
-	pruning_step=`get_str $pruning_steps $col`
-	pruning_rate=`echo "scale=2;$pruning_rate-$pruning_step/1.0"|bc`
-	smaller=`awk -v numa=0.01 -v numb=$pruning_step 'BEGIN{print(numa>numb)?"1":"0"}'`
-	if [ $smaller -eq 1 ]
-	then
-	    let "count_stepzero+=1"
-	fi
-	prune_and_evalt_step $1 $2 $3 $pruning_scopes $4 $5 $6 $7 
+	exit 0
     done
 }
-
-prune_and_evalt_scope $train_dir $check_dir $max_number_of_steps $trainable_scopes "$prune_net_args" $evalt_interval $g_early_skip $pruning_layers_index
+train_dir=./tmp/prune
+checkpoint_path=./mnist_Train_from_Scratch_lenet/Retrain_from_Scratch/model.ckpt-15500
+check_dir=../mnist_Train_from_Scratch_lenet/Retrain_from_Scratch
+max_number_of_steps=200
+all_trainable_scopes="LeNet/fc4,LeNet/fc3,LeNet/conv2,LeNet/conv1"
+trainable_scopes=$all_trainable_scopes
+pruning_scopes="LeNet/conv2,LeNet/conv1"
+pruning_rates="0.8,0.8"
+evalt_interval=50
+g_early_skip="False"
+pruning_layers_index="0 1"
+#prune_and_evalt_step $train_dir $check_dir $max_number_of_steps $pruning_scopes $pruning_rates $trainable_scopes "$prune_net_args" $evalt_interval $g_early_skip
+#exit 0
+prune_and_evalt_scope $train_dir $check_dir $max_number_of_steps $trainable_scopes "$prune_net_args" $evalt_interval $g_early_skip "$pruning_layers_index" 0 100 150
+exit 0
 #pruning_scopes pruning_rate_drop_step pruning_singlelayer_retrain_step pruning_multilayers_retrain_step
 
 function prune_and_evalt_iter()
 {
-    complete_iter=`get_complete_iter`
-    for((iter=$iter_;iter<$max_iter;iter+=1))
+    iter_major=`get_current_iter_major`
+    let "iter_count+=1"
+    if [ $iter_count -gt $iter_major ]
+    then
+	return 0
+    fi
+    for((iter=0;iter<$max_iter;iter+=1))
     do
 	prune_and_evalt_scope
 	

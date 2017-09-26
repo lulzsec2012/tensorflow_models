@@ -771,9 +771,7 @@ function pruning_and_retrain_multilayers_iter()
 
 
     local checkpoint_dir=`get_iter_checkpoint_dir $train_Dir $checkpoint_Path $iter $all_trainable_scopes`
-    set -x
     local checkpoint_path=`next_CHECKPOINT_PATH $checkpoint_dir`
-    set +x
     echo "checkpoint_dir="$checkpoint_dir
     echo "checkpoint_path="$checkpoint_path
     local train_dir=${train_Dir}/iter$iter
@@ -1006,7 +1004,7 @@ function pruning_and_retrain_multilayers()
 
 
 checkpoint_path=./mnist_Train_from_Scratch_lenet/Retrain_from_Scratch/model.ckpt-15500
-TRAIN_DIR_PREFIX=/run/shm/train_dir_multiLayers_OK_231_FC
+TRAIN_DIR_PREFIX=./train_dir_multiLayers_OK_231_FC
 train_Dir=${TRAIN_DIR_PREFIX}_${MODEL_NAME}/Retrain_Prunned_Network
 dir=`dirname $checkpoint_path`
 echo $dir

@@ -13,7 +13,7 @@ DEFAULT_MAX_NUMBER_OF_STEPS=200
 DATASET_SPLIT_NAME_FOR_VAL=validation  #for vgg
 #DATASET_SPLIT_NAME_FOR_VAL=test #for mnist
 
-NUM_CLONES=2
+NUM_CLONES=1
 #####################################################
 #           Pruning and Retrain Config
 #####################################################
@@ -616,18 +616,19 @@ function pruning_and_retrain_step_eval_multiLayer()
 	then
 	    consum_number_of_steps=$max_number_of_steps
 	fi
+	nvidia-smi
 	echo "Real eval command:" \
 	    "python3 train_image_classifier.py --noclone_on_cpu --optimizer=sgd --labels_offset=$LABELS_OFFSET --dataset_dir=${DATASET_DIR} \
             --dataset_name=$DATASET_NAME --dataset_split_name=train --model_name=$MODEL_NAME \
 	    --save_summaries_secs=$SAVE_SUMMARIES_SECS $@ \
 	    --max_number_of_steps=$consum_number_of_steps --pruning_gradient_update_ratio=$pruning_gradient_update_ratio --num_clones=$NUM_CLONES"
-
 	python3 train_image_classifier.py  --noclone_on_cpu --optimizer=sgd --labels_offset=$LABELS_OFFSET --dataset_dir=${DATASET_DIR} \
 	    --dataset_name=$DATASET_NAME --dataset_split_name=train --model_name=$MODEL_NAME \
 	    --save_summaries_secs=$SAVE_SUMMARIES_SECS $@ \
 	    --max_number_of_steps=$consum_number_of_steps --pruning_gradient_update_ratio=$pruning_gradient_update_ratio --num_clones=$NUM_CLONES
 	if [ $? -ne 0 ]
 	then
+	    nvidia-smi
 	    echo "envoke train_image_classifier.py failed!"
 	    exit 1
 	fi
@@ -1035,7 +1036,7 @@ echo "##########################################################################
 echo "eval pruning_and_retrain_multilayers configs:"$all_trainable_scopes $max_iters $allow_pruning_loss $train_Dir $checkpoint_path \
                    "$pruning_layers_index" $pruning_rate_drop_step $pruning_singlelayer_retrain_step $pruning_multilayers_retrain_step
 echo "################################################################################################################################"
-set_iter_steps $all_trainable_scopes $pruning_rate_drop_step
+#set_iter_steps $all_trainable_scopes $pruning_rate_drop_step
 pruning_and_retrain_multilayers $all_trainable_scopes $max_iters $allow_pruning_loss $train_Dir $checkpoint_path "$pruning_layers_index" $pruning_rate_drop_step $pruning_singlelayer_retrain_step $pruning_multilayers_retrain_step
 
 #enovke
