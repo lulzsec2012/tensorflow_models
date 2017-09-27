@@ -1,5 +1,6 @@
 #!/bin/bash
 trap "kill 0" INT
+shopt -s  extglob
 echo $CUDA_VISIBLE_DEVICES
 
 #####################################################
@@ -31,17 +32,20 @@ all_trainable_scopes="LeNet/fc4,LeNet/fc3,LeNet/conv2,LeNet/conv1"
 g_starting_pruning_rate=1.00
 g_starting_pruning_step=0.10
 
-
-#####################################################
-#              Algorithm Configs
-#####################################################
-
 prune_net_args="--noclone_on_cpu --optimizer=sgd --labels_offset=$LABELS_OFFSET --dataset_dir=${DATASET_DIR} --dataset_name=$DATASET_NAME --dataset_split_name=train --model_name=$MODEL_NAME \
 	--save_summaries_secs=$SAVE_SUMMARIES_SECS --pruning_gradient_update_ratio=0  --pruning_strategy=ABS \
         --log_every_n_steps=50 --save_interval_secs=600 --momentum=0.9 --end_learning_rate=0.00001 --learning_rate=0.001 --weight_decay=0.0005 --batch_size=64 \
          --num_clones=$NUM_CLONES" #all_trainable_scopes
 
 evalt_net_args="--alsologtostderr  --dataset_dir=${DATASET_DIR} --dataset_name=$DATASET_NAME --dataset_split_name=$DATASET_SPLIT_NAME_FOR_VAL --model_name=$MODEL_NAME --max_num_batches=50" #all_trainable_scopes
+evalt_loss_anc=9990
+evalt_loss_drp=50
+
+
+#####################################################
+#              Algorithm Configs
+#####################################################
+
 
 function next_CHECKPOINT_PATH()
 {
@@ -58,6 +62,17 @@ function next_CHECKPOINT_PATH()
     echo $checkpoint_path
 }
 
+function get_cur_number_of_steps()
+{
+    local train_dir=$1
+    cur_number_of_steps=0
+    if [ -f $train_dir/checkpoint ]
+    then
+	cur_number_of_steps=`cat $train_dir/checkpoint | grep -v "all_model_checkpoint_paths" | awk -F "-|\"" '{print $3}'`
+    fi
+    echo "$cur_number_of_steps"
+}
+
 function train_program()
 {
     local train_dir=$1
@@ -66,13 +81,12 @@ function train_program()
     local pruning_scopes=$4
     local pruning_rates=$5
     local trainable_scopes=$6
-    local prune_net_args=$7
+
     local tmp_check_path=`next_CHECKPOINT_PATH $check_dir`
     local cmd_str="--train_dir=$train_dir --checkpoint_path=$tmp_check_path --max_number_of_steps=$max_number_of_steps\
              --pruning_scopes=$pruning_scopes --pruning_rates=$pruning_rates --trainable_scopes=$trainable_scopes"
-    echo $cmd_str $prune_net_args
-    
-    python3 ../train_image_classifier.py  $cmd_str $prune_net_args
+    echo "python3 ../train_image_classifier.py  $prune_net_args $cmd_str"
+    python3 ../train_image_classifier.py  $prune_net_args $cmd_str 
 }
 
 function get_Recall_5()
@@ -104,8 +118,6 @@ function get_Accuracy()
 #train_dir evalt_loss_anc evalt_loss_thr evalt_loss_drp 
 #g_evalt_loss_pass
 #train_dir=/tmp/prune
-evalt_loss_anc=9900
-evalt_loss_drp=50
 
 function evalt_program()
 {
@@ -139,10 +151,6 @@ function evalt_program()
     fi
 }
 
-#evalt_program
-
-#train_dir check_dir fdata_dir tdata_dir max_steps 
-#pruning_scopes pruning_rates train_scopes 
 function prune_net()
 {
     local train_dir=$1
@@ -151,7 +159,6 @@ function prune_net()
     local pruning_scopes=$4
     local pruning_rates=$5
     local trainable_scopes=$6
-    local prune_net_args=$7
     echo "prune_net..."
     for((i=0;i<3;i+=1))
     do
@@ -190,30 +197,40 @@ function evalt_net()
     return 1
 }
 
-#train_dir check_dir fdata_dir tdata_dir max_steps 
-#pruning_scopes pruning_rates train_scopes 
-
-#Real eval command: python3 train_image_classifier.py --noclone_on_cpu --optimizer=sgd --labels_offset=1 --dataset_dir=/mllib/ImageNet/ILSVRC2012_tensorflow             --dataset_name=imagenet --dataset_split_name=train --model_name=vgg_16 	    --save_summaries_secs=1000 --checkpoint_path=./train_dir_multiLayers_imagenet_from_50000_learning_rate0.0001_reconfigGAccuracy_allowBiasBp_worker_replicas2_test_num_clones1_vgg_16/Retrain_Prunned_Network/iter0_pass/model.ckpt-50000 --train_dir=./train_dir_multiLayers_imagenet_from_50000_learning_rate0.0001_reconfigGAccuracy_allowBiasBp_worker_replicas2_test_num_clones1_vgg_16/Retrain_Prunned_Network/iter1 --trainable_scopes=vgg_16/fc8,vgg_16/fc7,vgg_16/fc6,vgg_16/conv5/conv5_3,vgg_16/conv5/conv5_2,vgg_16/conv5/conv5_1,vgg_16/conv4/conv4_3,vgg_16/conv4/conv4_2,vgg_16/conv4/conv4_1,vgg_16/conv3/conv3_3,vgg_16/conv3/conv3_2,vgg_16/conv3/conv3_1,vgg_16/conv2/conv2_2,vgg_16/conv2/conv2_1,vgg_16/conv1/conv1_2,vgg_16/conv1/conv1_1 --pruning_scopes=vgg_16/fc8,vgg_16/fc7,vgg_16/fc6,vgg_16/conv5/conv5_3,vgg_16/conv5/conv5_2,vgg_16/conv5/conv5_1,vgg_16/conv4/conv4_3,vgg_16/conv4/conv4_2,vgg_16/conv4/conv4_1,vgg_16/conv3/conv3_3,vgg_16/conv3/conv3_2,vgg_16/conv3/conv3_1,vgg_16/conv2/conv2_2,vgg_16/conv2/conv2_1,vgg_16/conv1/conv1_2,vgg_16/conv1/conv1_1 --pruning_rates=.96,1.00,1.00,1.00,1.00,1.00,1.00,1.00,1.00,1.00,1.00,1.00,1.00,1.00,1.00,1.00 --max_number_of_steps=100010 --pruning_strategy=ABS --log_every_n_steps=10 --save_interval_secs=600 --momentum=0.9 --end_learning_rate=0.00001 --learning_rate=0.0001 --weight_decay=0.0005 --batch_size=64 	    --max_number_of_steps=2000 --pruning_gradient_update_ratio=0 --num_clones=1
-
-#train_dir check_dir  max_steps 
-#max_steps evalt_interval  g_early_skip
+#train_dir check_dir  max_number_of_steps 
+#max_number_of_steps evalt_interval  g_early_skip
 function prune_and_evalt_step()
 {
     local train_dir=$1
     local check_dir=$2
-    local max_steps=$3
+    local max_number_of_steps=$3 
     local pruning_scopes=$4
     local pruning_rates=$5
     local trainable_scopes=$6
-    local prune_net_args=$7
-    local evalt_interval=$8
-    local g_early_skip=$9
 
-    local max_number_of_steps=0
-    for((step=10;step<=$max_steps;step+=$evalt_interval))
+    local evalt_interval=$7
+    local g_early_skip=$8
+
+    local cur_step=`get_cur_number_of_steps $train_dir`
+    local starting_step=10
+    if [ $cur_step -ne 0 ]
+    then
+	if [ $g_early_skip = "True" ]
+	then
+	    let "starting_step+=cur_step"
+	else
+	    let "starting_step=evalt_interval"
+	fi
+	let "max_number_of_steps+=cur_step"
+    fi
+    echo "cur_step="$cur_step
+    echo "max_number_of_steps="$max_number_of_steps
+    echo "starting_step="$starting_step
+
+    for((step=$starting_step;step<=$max_number_of_steps;step+=$evalt_interval))
     do
 	echo "prune_and_evalt_step::step="$step "evalt_interval="$evalt_interval
-	prune_net $1 $2 $step $4 $5 $6 "$prune_net_args" 
+	prune_net $1 $2 $step $4 $5 $6 
 	evalt_net $1
 	if [ $g_evalt_loss_pass = "True" -a $g_early_skip = "True" -a -d $train_dir ]
 	then
@@ -243,9 +260,10 @@ function max()
 function get_current_iter_major()
 {
     local data_dir=${1:-data}
+    local work_dir=${2:-work}
     local _Max=0
-    mkdir -p $data_dir
-    for file in `\ls $data_dir | grep iter | grep "-"`
+    mkdir -p $data_dir $work_dir
+    for file in `\ls $data_dir $work_dir | grep iter | grep -v tmp | grep "-"`
     do
 	num=`echo $file | awk -F "iter" '{print $2}' | awk -F "-" '{print $1}'`
 	_Max=`max $_Max $num`
@@ -257,10 +275,11 @@ function get_current_iter_major()
 function get_current_iter_minor()
 {
     local data_dir=${1:-data}
-    local iter_major=$2
+    local work_dir=${2:-work}
+    local iter_major=$3
     local _Max=100
-    mkdir -p $data_dir
-    for file in `\ls $data_dir | grep "iter${iter_major}"`
+    mkdir -p $data_dir $work_dir
+    for file in `\ls $data_dir $work_dir | grep -v tmp | grep "iter${iter_major}"`
     do
 	num=`echo $file | awk -F "-" '{print $2}'`
 	_Max=`max $_Max $num`
@@ -329,62 +348,65 @@ function modify_str()
     echo "$_rates"
 }
 
-function get_cur_number_of_steps()
-{
-    local train_dir=$1
-    cur_number_of_steps=0
-    if [ -f $train_dir/checkpoint ]
-    then
-	cur_number_of_steps=`cat $train_dir/checkpoint | grep -v "all_model_checkpoint_paths" | awk -F "-|\"" '{print $3}'`
-    fi
-    echo "$cur_number_of_steps"
-}
-#pruning_scopes pruning_rate_drop_step pruning_singlelayer_retrain_step pruning_multilayers_retrain_step
-#pruning_layers_index="0 1 2 3"
+
 function prune_and_evalt_scope()
 {
-    local train_dir=$1
+    local work_dir=$1
     local check_dir=$2
-    local max_steps=$3
-    local trainable_scopes=$4
-    local prune_net_args=$5
+    local max_number_of_steps=$3
+    local fdata_dir=$4
+    local trainable_scopes=$5
     local evalt_interval=$6
     local g_early_skip=$7
-    local pruning_layers_index=$8
-    local pruning_singlelayer_prtrain_step=$9 
-    local pruning_singlelayer_retrain_step=${10}
-    local pruning_multilayers_retrain_step=${11}
+    local pruning_singlelayer_prtrain_step=$8
+    local pruning_singlelayer_retrain_step=${9}
+    local pruning_multilayers_retrain_step=${10}
+    local pruning_layers_index=${11}
+
     fdata_dir=./result
-    iter_major=`get_current_iter_major $fdata_dir`
-    iter_minor=`get_current_iter_minor $fdata_dir $iter_major`
+    train_dir=$work_dir/train_dir
+
+    iter_major=`get_current_iter_major $fdata_dir $work_dir`
+    iter_minor=`get_current_iter_minor $fdata_dir $work_dir $iter_major`
     echo "the number of params:$#"
-    echo "params:$@"
+    echo "params:$*"
     echo "iter_major="$iter_major
     echo "iter_minor="$iter_minor
     echo "pruning_singlelayer_prtrain_step="$pruning_singlelayer_prtrain_step
     if [ $iter_major -eq 0 -a $iter_minor -eq 100 ]
     then
-	mkdir -p ${fdata_dir}/iter0-100
-	cp ${check_dir}/* ${fdata_dir}/iter0-100 -r
-	check_dir=${fdata_dir}/iter0-100
+	mkdir -p $fdata_dir/iter0_000
+	cp ${check_dir}/* $fdata_dir/iter0_000 -r
+	check_dir=$fdata_dir/iter0_000
+
+	evalt_loss_anc=
+	
+	ckhp_iter_Rates_txt="${check_dir}/iter_Rates.txt"
+	ckhp_iter_Steps_txt="${check_dir}/iter_Steps.txt"
+	cur_steps="$g_starting_pruning_step"
+	cur_rates="$g_starting_pruning_rate"
+	local all_trainable_scopes_num=`echo $all_trainable_scopes | awk -F "," '{print NF}'`
+	for((i=1;i<$all_trainable_scopes_num;i+=1))
+	do
+	    cur_steps="$cur_steps,$g_starting_pruning_step"    
+	    cur_rates="$cur_rates,$g_starting_pruning_rate"    
+	done
+	write_to_file $ckhp_iter_Rates_txt $cur_rates 2>&1 >> /dev/null
+	write_to_file $ckhp_iter_Steps_txt $cur_steps 2>&1 >> /dev/null
     else
-	check_dir=${fdata_dir}/iter${iter_major}-${iter_minor}_pass
+	if [ -d $work_dir/iter${iter_major}-${iter_minor} ]
+	then
+	    check_dir=$work_dir/iter${iter_major}-${iter_minor}
+	else
+	    check_dir=$fdata_dir/iter${iter_major}-${iter_minor}
+	fi
     fi
+    rm $train_dir -rf
     mkdir -p $train_dir
     cp ${check_dir}/iter_Rates.txt $train_dir
     cp ${check_dir}/iter_Steps.txt $train_dir
     ckhp_iter_Rates_txt="${train_dir}/iter_Rates.txt"
     ckhp_iter_Steps_txt="${train_dir}/iter_Steps.txt"
-    cur_steps="$g_starting_pruning_step"
-    cur_rates="$g_starting_pruning_rate"
-    local all_trainable_scopes_num=`echo $all_trainable_scopes | awk -F "," '{print NF}'`
-    for((i=1;i<$all_trainable_scopes_num;i+=1))
-    do
-	cur_steps="$cur_steps,$g_starting_pruning_step"    
-	cur_rates="$cur_rates,$g_starting_pruning_rate"    
-    done
-    write_to_file $ckhp_iter_Rates_txt $cur_rates 2>&1 >> /dev/null
-    write_to_file $ckhp_iter_Steps_txt $cur_steps 2>&1 >> /dev/null
 
 
     local count_stepzero=0
@@ -397,12 +419,12 @@ function prune_and_evalt_scope()
 	pruning_step=`get_str $pruning_steps $col`
 	pruning_rate=`echo "scale=2;$pruning_rate-$pruning_step/1.0"|bc`
 	echo "pruning_rate=$pruning_rate"
-	if [ $pruning_singlelayer_prtrain_step -gt 0 ]
+	if [ $pruning_singlelayer_prtrain_step -gt 0 -a 1 -eq 0 ]
 	then
-	    echo "prtrain: $1 $check_dir $pruning_singlelayer_prtrain_step $pruning_scopes $pruning_rates $4 "$5" $6 $7 "
-	    prune_and_evalt_step $1 $check_dir $pruning_singlelayer_prtrain_step $pruning_scopes $pruning_rates $4 "$5" $6 $7 
+	    echo "prtrain: prune_and_evalt_step $train_dir $check_dir $pruning_singlelayer_prtrain_step $pruning_scopes $pruning_rates $trainable_scopes $evalt_interval $g_early_skip"
+	    prune_and_evalt_step $train_dir $check_dir $pruning_singlelayer_prtrain_step $pruning_scopes $pruning_rates $trainable_scopes $evalt_interval $g_early_skip
 	    rm $check_dir -rfv 
-	    mv $train_dir $check_dir -v
+	    mv $train_dir $check_dir -vf
 	fi
 	is_preTry_Pass="True"
 	if [ $is_preTry_Pass = "True" ]
@@ -412,15 +434,11 @@ function prune_and_evalt_scope()
 	fi
 	echo "pruning_steps=$pruning_steps"
 
-	local max_number_of_steps=`get_cur_number_of_steps $train_dir`
-	echo "get_cur_number_of_steps:max_number_of_steps="$max_number_of_steps
-	let "max_number_of_steps+=pruning_singlelayer_retrain_step"
-
-	prune_and_evalt_step $1 $check_dir $pruning_singlelayer_retrain_step $pruning_scopes $pruning_rates $4 "$5" $6 $7 
+	echo "envoke prune_and_evalt_step $train_dir $check_dir $pruning_singlelayer_retrain_step $pruning_scopes $pruning_rates $trainable_scopes $evalt_interval $g_early_skip"
+       	prune_and_evalt_step $train_dir $check_dir $pruning_singlelayer_retrain_step $pruning_scopes $pruning_rates $trainable_scopes $evalt_interval $g_early_skip
 	if [ $? -eq 0 ]
 	then
-	    echo "prune_and_evalt_step pass"
-	    #TODO:update rates and steps
+	    echo "envoke prune_and_evalt_step pass"
 	    let "count_preTry_Pass+=1"
 	    write_to_file $ckhp_iter_Rates_txt "$pruning_rates"
 	    smaller=`awk -v numa=$pruning_rate -v numb=$pruning_step 'BEGIN{print(numa-numb<0.001)?"1":"0"}'`
@@ -430,23 +448,75 @@ function prune_and_evalt_scope()
             fi
 	    pruning_steps=`modify_str $pruning_steps $col  $pruning_step` 
 	    write_to_file $ckhp_iter_Steps_txt "$pruning_steps"
-	    rm $check_dir -rf 
-	    mv $train_dir $check_dir 
+	    rm 	$work_dir/check_dir -rf 
+	    cp $train_dir $work_dir/check_dir -r
+	    check_dir=$work_dir/check_dir
 	else
-	    echo "prune_and_evalt_step fail"
-	    rm $check_dir -rf 
-	    #TODO:update rates and steps
+	    echo "envoke prune_and_evalt_step fail"
 	    pruning_rate=`echo "scale=2;$pruning_rate+$pruning_step/1.0"|bc`
 	    pruning_step=`echo "scale=2;$pruning_step/2.0"|bc`
-	    rm ${train_dir} -rf
-	    mkdir -p ${train_dir}
+	    if [ -d $work_dir/check_dir ]
+	    then
+		rm $train_dir -rf
+		cp $check_dir  $train_dir -r
+	    else
+		echo "XXXXXXXXXXXXXXXXXXXXXXXXXX"
+		echo "before rm:"
+		ls $train_dir
+		cd $train_dir
+		rm -rf !(iter_Rates.txt)
+		cd -
+		echo "after rm:"
+		ls $train_dir
+	    fi
 	    pruning_steps=`modify_str $pruning_steps $col  $pruning_step` 
 	    write_to_file $ckhp_iter_Steps_txt "$pruning_steps"
 	fi
-	exit 0
+    done
+    let "iter_minor+=1"
+    mkdir -p $check_dir
+    rm $work_dir/iter${iter_major}-${iter_minor} -rf
+    mv $work_dir/iter* $fdata_dir -vf
+    mv $check_dir $work_dir/iter${iter_major}-${iter_minor} -vf
+    ( rm $fdata_dir/*_tmp -rf ; cp $work_dir/iter${iter_major}-${iter_minor}  $fdata_dir/iter${iter_major}-${iter_minor}_tmp -rfv ) &
+}
+
+function prune_and_evalt_iter()
+{
+    local work_dir=$1
+    local check_dir=$2
+    local max_number_of_steps=$3
+    local fdata_dir=$4
+    local trainable_scopes=$5
+    local evalt_interval=$6
+    local g_early_skip=$7
+    local pruning_singlelayer_prtrain_step=$8
+    local pruning_singlelayer_retrain_step=${9}
+    local pruning_multilayers_retrain_step=${10}
+    local max_minor_iter=${11}
+    local pruning_layers_index=${12}
+
+    iter_major=`get_current_iter_major $fdata_dir $work_dir`
+    cur_iter_count=$ITER_COUNT
+    let "ITER_COUNT+=1"
+    
+    if [ $iter_major -gt $cur_iter_count ]
+    then
+	return 0
+    fi
+
+    for((minor_iter=0;minor_iter<$max_minor_iter;minor_iter+=1))
+    do
+	echo "####################################################################"
+	echo "# 'CURRENT_ITER='$cur_iter_count   'minor_iter='$minor_iter        #"
+	echo "####################################################################"
+	prune_and_evalt_scope $work_dir $check_dir $max_number_of_steps $fdata_dir $trainable_scopes $evalt_interval $g_early_skip $pruning_singlelayer_prtrain_step $pruning_singlelayer_retrain_step \
+	    $pruning_multilayers_retrain_step "$pruning_layers_index"
     done
 }
-train_dir=./tmp/prune
+
+
+work_dir=./tmp/prune
 checkpoint_path=./mnist_Train_from_Scratch_lenet/Retrain_from_Scratch/model.ckpt-15500
 check_dir=../mnist_Train_from_Scratch_lenet/Retrain_from_Scratch
 max_number_of_steps=200
@@ -457,27 +527,10 @@ pruning_rates="0.8,0.8"
 evalt_interval=50
 g_early_skip="False"
 pruning_layers_index="0 1"
-#prune_and_evalt_step $train_dir $check_dir $max_number_of_steps $pruning_scopes $pruning_rates $trainable_scopes "$prune_net_args" $evalt_interval $g_early_skip
-#exit 0
-prune_and_evalt_scope $train_dir $check_dir $max_number_of_steps $trainable_scopes "$prune_net_args" $evalt_interval $g_early_skip "$pruning_layers_index" 0 100 150
-exit 0
-#pruning_scopes pruning_rate_drop_step pruning_singlelayer_retrain_step pruning_multilayers_retrain_step
+fdata_dir=./result
 
-function prune_and_evalt_iter()
-{
-    iter_major=`get_current_iter_major`
-    let "iter_count+=1"
-    if [ $iter_count -gt $iter_major ]
-    then
-	return 0
-    fi
-    for((iter=0;iter<$max_iter;iter+=1))
-    do
-	prune_and_evalt_scope
-	
-    done
-}
 
-prune_net_args="" #all_trainable_scopes
-evalt_net_args="" #all_trainable_scopes
-
+ITER_COUNT=0 
+prune_and_evalt_iter $work_dir $check_dir $max_number_of_steps $fdata_dir $trainable_scopes $evalt_interval $g_early_skip 0 100 150 2 "$pruning_layers_index"
+prune_and_evalt_iter $work_dir $check_dir $max_number_of_steps $fdata_dir $trainable_scopes $evalt_interval $g_early_skip 0 100 150 2 "$pruning_layers_index"
+prune_and_evalt_iter $work_dir $check_dir $max_number_of_steps $fdata_dir $trainable_scopes $evalt_interval $g_early_skip 0 100 150 2 "$pruning_layers_index"

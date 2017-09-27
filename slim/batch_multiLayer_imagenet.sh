@@ -629,8 +629,18 @@ function pruning_and_retrain_step_eval_multiLayer()
 	if [ $? -ne 0 ]
 	then
 	    nvidia-smi
-	    echo "envoke train_image_classifier.py failed!"
-	    exit 1
+	    echo "envoke train_image_classifier.py failed 1!"
+	    sleep 60s
+	    python3 train_image_classifier.py  --noclone_on_cpu --optimizer=sgd --labels_offset=$LABELS_OFFSET --dataset_dir=${DATASET_DIR} \
+		--dataset_name=$DATASET_NAME --dataset_split_name=train --model_name=$MODEL_NAME \
+		--save_summaries_secs=$SAVE_SUMMARIES_SECS $@ \
+		--max_number_of_steps=$consum_number_of_steps --pruning_gradient_update_ratio=$pruning_gradient_update_ratio --num_clones=$NUM_CLONES
+	    if [ $? -ne 0 ]
+	    then
+		nvidia-smi
+		echo "envoke train_image_classifier.py failed 2!"
+		exit 1
+	fi
 	fi
 
 	local result_str3=`eval_image_classifier $train_dir`
