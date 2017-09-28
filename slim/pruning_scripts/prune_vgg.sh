@@ -6,18 +6,18 @@ echo $CUDA_VISIBLE_DEVICES
 #####################################################
 #                 Global Config
 #####################################################
-rm /run/shm/mnist -rf
-cp ../mnist /run/shm/ -r
-DATASET_DIR=/run/shm/mnist #/mllib/ImageNet/ILSVRC2012_tensorflow
-DATASET_NAME=mnist     #imagenet
+
+
+DATASET_DIR=/mllib/ImageNet/ILSVRC2012_tensorflow
+DATASET_NAME=imagenet
 TRAIN_DIR_PREFIX=./train_dir_multiLayer
 
 SAVE_SUMMARIES_SECS=250
-DEFAULT_MAX_NUMBER_OF_STEPS=200
-#DATASET_SPLIT_NAME_FOR_VAL=validation  #for vgg
-DATASET_SPLIT_NAME_FOR_VAL=test #for mnist
-MODEL_NAME=lenet #vgg_16
-LABELS_OFFSET=0  #vgg resnet 1000+1 (1 for background)
+#DEFAULT_MAX_NUMBER_OF_STEPS=200
+DATASET_SPLIT_NAME_FOR_VAL=validation  #for vgg
+#DATASET_SPLIT_NAME_FOR_VAL=test #for mnist
+MODEL_NAME=vgg_16
+LABELS_OFFSET=1  #vgg resnet 1000+1 (1 for background)
 NUM_CLONES=1
 
 shopt -s expand_aliases
@@ -615,21 +615,21 @@ function prune_and_evalt_iter()
 }
 
 check_dir=../mnist_Train_from_Scratch_lenet/Retrain_from_Scratch
-#check_dir=../VGG_16_RETRAIN_FOR_CONVERGENCE_SGD_20000
+check_dir=../VGG_16_RETRAIN_FOR_CONVERGENCE_SGD_20000
 all_trainable_scopes="LeNet/fc4,LeNet/fc3,LeNet/conv2,LeNet/conv1"
-#all_trainable_scopes="vgg_16/fc8,vgg_16/fc7,vgg_16/fc6,vgg_16/conv5/conv5_3,vgg_16/conv5/conv5_2,vgg_16/conv5/conv5_1,vgg_16/conv4/conv4_3,vgg_16/conv4/conv4_2,vgg_16/conv4/conv4_1,vgg_16/conv3/conv3_3,vgg_16/conv3/conv3_2,vgg_16/conv3/conv3_1,vgg_16/conv2/conv2_2,vgg_16/conv2/conv2_1,vgg_16/conv1/conv1_2,vgg_16/conv1/conv1_1"
+all_trainable_scopes="vgg_16/fc8,vgg_16/fc7,vgg_16/fc6,vgg_16/conv5/conv5_3,vgg_16/conv5/conv5_2,vgg_16/conv5/conv5_1,vgg_16/conv4/conv4_3,vgg_16/conv4/conv4_2,vgg_16/conv4/conv4_1,vgg_16/conv3/conv3_3,vgg_16/conv3/conv3_2,vgg_16/conv3/conv3_1,vgg_16/conv2/conv2_2,vgg_16/conv2/conv2_1,vgg_16/conv1/conv1_2,vgg_16/conv1/conv1_1"
 
 
-fdata_dir=./result_x
-work_dir=/run/shm/prune_x
+fdata_dir=./result_vgg
+work_dir=/run/shm/prune_vgg
 max_iters=20
-trainable_scopes="LeNet/fc4,LeNet/fc3,LeNet/conv2,LeNet/conv1"
+trainable_scopes=$all_trainable_scopes
 evalt_interval=50
 g_early_skip="True"
 pruning_layers_index="0 1"
 
 LOG_FILE=$fdata_dir/log
-#rm $LOG_FILE -rf
+rm $LOG_FILE -rf
 
 ITER_COUNT=0 
 #prune_and_evalt_iter $work_dir $check_dir $max_iters $fdata_dir $trainable_scopes $evalt_loss_drp $pruning_rate_drop_step $evalt_interval $g_early_skip  1000 100 150 $pruning_layers_index

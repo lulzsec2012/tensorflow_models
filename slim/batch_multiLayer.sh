@@ -809,7 +809,6 @@ function pruning_and_retrain_multilayers_iter()
     fi
     
     local cnt=0
-    local count_stepzero=0
     local count_preTry_Pass=0
     local pruning_layers_num=`echo $pruning_layers_index | awk -F " " '{print NF}'`
     is_preTry_Pass="True"

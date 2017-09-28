@@ -626,8 +626,13 @@ def get_variables_to_pruning():
 
 def main(_):
   ###add for pruning
-  gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=1.0)#add by lzlu  
-  sessGPU = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))  
+  if FLAGS.model_name == "lenet" :
+    gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.3)#add by lzlu  
+    sessGPU = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
+  else:
+    gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=1.0)#add by lzlu  
+    sessGPU = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
+  print("FLAGS.model_name:",FLAGS.model_name)
   #config = tf.ConfigProto()  
   #config.gpu_options.allow_growth=True  
   #sessGPU = tf.Session(config=config)  
