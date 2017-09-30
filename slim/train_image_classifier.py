@@ -386,7 +386,7 @@ def _get_variables_to_train():
   Returns:
     A list of variables to train by the optimizer.
   """
-  if FLAGS.trainable_scopes is None:
+  if FLAGS.trainable_scopes is None or FLAGS.trainable_scopes is "" :
     return tf.trainable_variables()
   else:
     scopes = [scope.strip() for scope in FLAGS.trainable_scopes.split(',')]
@@ -586,20 +586,20 @@ def get_variables_to_pruning():
     A list of variables to pruning.
   """
 
-  if FLAGS.pruning_scopes is None:
+  if FLAGS.pruning_scopes is None or FLAGS.pruning_scopes is "" :
     return None
   else:
     scopes = [scope.strip() for scope in FLAGS.pruning_scopes.split(',')]
   
-  if FLAGS.pruning_rates:
+  if FLAGS.pruning_rates and FLAGS.pruning_rates is not "" :
     rates = [irate for irate in FLAGS.pruning_rates.split(',')]
   
   count=0
   for scope in scopes:
-    if FLAGS.pruning_rates is None:
-      rate=0.8
-    else:
+    if FLAGS.pruning_rates and FLAGS.pruning_rates is not "" :
       rate=rates[count]
+    else:
+      rate=0.8
     scopes[count]=(scope,rate)
     count+=1
 
