@@ -1015,7 +1015,7 @@ function pruning_and_retrain_multilayers()
 
 
 checkpoint_path=./VGG_16_RETRAIN_FOR_CONVERGENCE_SGD_20000/model.ckpt-20000
-TRAIN_DIR_PREFIX=./train_dir_multiLayers_imagenet_from_SGD_20000_learning_rate0.00001_reconfigGAccuracy_allowBiasBp_worker_replicas2_test_230
+TRAIN_DIR_PREFIX=./train_dir_multiLayers_imagenet_from_SGD_20000_learning_rate0.00001_reconfigGAccuracy_allowBiasBp_worker_replicas1_T230
 train_Dir=${TRAIN_DIR_PREFIX}_${MODEL_NAME}/Retrain_Prunned_Network
 dir=`dirname $checkpoint_path`
 echo $dir
@@ -1037,7 +1037,7 @@ echo "#####################################################################"
 #enovke
 all_trainable_scopes="vgg_16/fc8,vgg_16/fc7,vgg_16/fc6,vgg_16/conv5/conv5_3,vgg_16/conv5/conv5_2,vgg_16/conv5/conv5_1,vgg_16/conv4/conv4_3,vgg_16/conv4/conv4_2,vgg_16/conv4/conv4_1,vgg_16/conv3/conv3_3,vgg_16/conv3/conv3_2,vgg_16/conv3/conv3_1,vgg_16/conv2/conv2_2,vgg_16/conv2/conv2_1,vgg_16/conv1/conv1_2,vgg_16/conv1/conv1_1"
 max_iters=20
-pruning_layers_index="0 1 2"
+pruning_layers_index="0 1 2 3"
 allow_pruning_loss=50
 pruning_rate_drop_step=0.16
 pruning_singlelayer_retrain_step=10
