@@ -71,11 +71,11 @@ tf.app.flags.DEFINE_integer(
     'are handled locally by the worker.')
 
 tf.app.flags.DEFINE_integer(
-    'num_readers', 4,
+    'num_readers', 2,
     'The number of parallel readers that read data from the dataset.')
 
 tf.app.flags.DEFINE_integer(
-    'num_preprocessing_threads', 4,
+    'num_preprocessing_threads', 2,
     'The number of threads used to create the batches.')
 
 tf.app.flags.DEFINE_integer(
@@ -630,7 +630,7 @@ def main(_):
     gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.3)#add by lzlu  
     sessGPU = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
   else:
-    gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=1.0)#add by lzlu  
+    gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.9)#add by lzlu  
     sessGPU = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
   print("FLAGS.model_name:",FLAGS.model_name)
   #config = tf.ConfigProto()  
