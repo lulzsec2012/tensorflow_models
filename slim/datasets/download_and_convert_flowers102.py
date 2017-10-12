@@ -36,17 +36,18 @@ import tensorflow as tf
 
 from datasets import dataset_utils
 
+#import flowers102_utils
 # The URL where the Flowers data can be downloaded.
-_DATA_URL = 'http://download.tensorflow.org/example_images/flower_photos.tgz'
+_DATA_URL = 'http://101.96.10.63/www.robots.ox.ac.uk/~vgg/data/flowers/102/102flowers.tgz'
 
 # The number of images in the validation set.
-_NUM_VALIDATION = 350
+_NUM_VALIDATION = 1020
 
 # Seed for repeatability.
 _RANDOM_SEED = 0
 
 # The number of shards per dataset split.
-_NUM_SHARDS = 5
+_NUM_SHARDS = 102
 
 
 class ImageReader(object):
@@ -187,7 +188,8 @@ def run(dataset_dir):
     print('Dataset files already exist. Exiting without re-creating them.')
     return
 
-  dataset_utils.download_and_uncompress_tarball(_DATA_URL, dataset_dir)
+  #dataset_utils.download_and_uncompress_tarball(_DATA_URL, dataset_dir)
+  #flowers102_utils._arrange_flower_folders(dataset_dir,'flower_photos','flower102_labels.txt')
   photo_filenames, class_names = _get_filenames_and_classes(dataset_dir)
   class_names_to_ids = dict(zip(class_names, range(len(class_names))))
 
@@ -207,5 +209,5 @@ def run(dataset_dir):
   labels_to_class_names = dict(zip(range(len(class_names)), class_names))
   dataset_utils.write_label_file(labels_to_class_names, dataset_dir)
 
-  #_clean_up_temporary_files(dataset_dir)
+  _clean_up_temporary_files(dataset_dir)
   print('\nFinished converting the Flowers dataset!')
