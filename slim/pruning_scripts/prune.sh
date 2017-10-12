@@ -584,7 +584,10 @@ function prune_and_evalt_scope()
             then
 		pruning_step=`echo "scale=2;$pruning_step/2.0"|bc`
             fi
-	    pruning_steps=`modify_str $pruning_steps $col  $pruning_step` 
+	    if [ $col != "-" ]
+	    then
+		pruning_steps=`modify_str $pruning_steps $col  $pruning_step` 
+	    fi
 	    write_to_file ${train_dir}/iter_Steps.txt "$pruning_steps"
 	    ls $work_dir $fdata_dir
 	    rm 	$work_dir/check_dir -rf 
