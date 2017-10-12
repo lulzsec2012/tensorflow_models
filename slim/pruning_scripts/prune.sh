@@ -733,10 +733,11 @@ echo "evalt_loss_anc="$evalt_loss_anc | log
 ITER_COUNT=0 
 #prune_and_evalt_iter $work_dir $check_dir $max_iters $fdata_dir $trainable_scopes $evalt_loss_anc $evalt_loss_drp $pruning_rate_drop_step $evalt_interval $early_skip  1000 100 150 $pruning_layers_index
 #prune_and_evalt_iter  $work_dir $check_dir          1 $fdata_dir $trainable_scopes $evalt_loss_anc            100                    0.04              50 $early_skip  3000  100 0   "0"
-prune_and_evalt_iter  $work_dir $check_dir $max_iters $fdata_dir $trainable_scopes $evalt_loss_anc             50                    0.10              50 $early_skip     0   50 0   "0,1"         "--learning_rate=0.0001"
-prune_and_evalt_iter  $work_dir $check_dir $max_iters $fdata_dir $trainable_scopes $evalt_loss_anc            100                    0.10              50 $early_skip     0   50 0   "2,3"         "--learning_rate=0.0001"
+prune_and_evalt_iter  $work_dir $check_dir $max_iters $fdata_dir $trainable_scopes $evalt_loss_anc             50                    0.10              50 $early_skip     0   50 0   "0,1"         "--learning_rate=0.00001"
+prune_and_evalt_iter  $work_dir $check_dir $max_iters $fdata_dir $trainable_scopes $evalt_loss_anc            100                    0.10              50 $early_skip     0   50 0   "2,3"         "--learning_rate=0.00001"
 
-prune_and_evalt_iter  $work_dir $check_dir          6 $fdata_dir $trainable_scopes $evalt_loss_anc            100                    0.04             250     "False"     0  500 0   "-"           "--learning_rate=0.001"
+prune_and_evalt_iter  $work_dir $check_dir          6 $fdata_dir $trainable_scopes $evalt_loss_anc            100                    0.04             250     "False"     0  500 0   "-"           "--learning_rate=0.0001"
+exit 0
 prune_and_evalt_iter  $work_dir $check_dir $max_iters $fdata_dir $trainable_scopes $evalt_loss_anc            150                    0.04              50 $early_skip     0   50 0   "0,1"
 
 prune_and_evalt_iter  $work_dir $check_dir          6 $fdata_dir $trainable_scopes $evalt_loss_anc            150                    0.04             500     "False"     0  500 0   "-"           "--learning_rate=0.001"
