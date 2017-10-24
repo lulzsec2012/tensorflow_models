@@ -7,8 +7,8 @@ alias log='tee -a $LOG_FILE'
 #####################################################
 
 ############################Configs############################
-MODEL_NAME=vgg_16
-DATASET_NAME=imagenet
+MODEL_NAME=alexnet_v2   #vgg_16
+DATASET_NAME=flowers102 #imagenet
 NUM_CLONES=1
 ###############################################################
 
@@ -758,10 +758,12 @@ evalt_loss_drp=50
 
 check_dir=../mnist_Train_from_Scratch_lenet/Retrain_from_Scratch
 check_dir=/home/lzlu/tensorflow_models/slim/VGG_16_RETRAIN_FOR_CONVERGENCE_SGD_20000
+check_dir=train_logs_alexnet/steps134000
 all_trainable_scopes="LeNet/fc4,LeNet/fc3,LeNet/conv2,LeNet/conv1"
 all_trainable_scopes="vgg_16/fc8,vgg_16/fc7,vgg_16/fc6,vgg_16/conv5/conv5_3,vgg_16/conv5/conv5_2,vgg_16/conv5/conv5_1,vgg_16/conv4/conv4_3,vgg_16/conv4/conv4_2,vgg_16/conv4/conv4_1,vgg_16/conv3/conv3_3,vgg_16/conv3/conv3_2,vgg_16/conv3/conv3_1,vgg_16/conv2/conv2_2,vgg_16/conv2/conv2_1,vgg_16/conv1/conv1_2,vgg_16/conv1/conv1_1"
+all_trainable_scopes="alexnet_v2/fc8,alexnet_v2/fc7,alexnet_v2/fc6,alexnet_v2/conv5,alexnet_v2/conv4,alexnet_v2/conv3,alexnet_v2/conv2,alexnet_v2/conv1"
 
-fdata_dir=prune_vgg_230_NUM_CLONES1_gpu01
+fdata_dir=prune_alexnet_batch64_test
 work_dir=$shm_dir/$fdata_dir
 max_iters=10
 trainable_scopes=$all_trainable_scopes
@@ -790,34 +792,34 @@ echo "evalt_loss_anc="$evalt_loss_anc | log
 #Alexnet_pruning_steps: 3X
 ITER_COUNT=0 
 #prune_and_evalt_iter $work_dir $check_dir $max_iters $fdata_dir $trainable_scopes $evalt_loss_anc $evalt_loss_drp $pruning_rate_drop_step $evalt_interval $early_skip  1000 100 150 $pruning_layers_index
-prune_and_evalt_iter  $work_dir $check_dir $max_iters $fdata_dir $trainable_scopes $evalt_loss_anc    50  0.16  50 $early_skip  0  100 0   "0,1,2"                                   "--learning_rate=0.0001" 
-prune_and_evalt_iter  $work_dir          5 $max_iters $fdata_dir $trainable_scopes $evalt_loss_anc    50  0.16  50     "False"  0 2000 0   "-,0,1,2"                                 "--learning_rate=0.0001"
-prune_and_evalt_iter  $work_dir $check_dir $max_iters $fdata_dir $trainable_scopes $evalt_loss_anc   100  0.16  50 $early_skip  0  100 0   "3,4,5,6,7,8,9,10,11,12,13,14,15"         "--learning_rate=0.0001"
-prune_and_evalt_iter  $work_dir          5 $max_iters $fdata_dir $trainable_scopes $evalt_loss_anc   100  0.16  50     "False"  0 2000 0   "-,3,4,5,6,7,8,9,10,11,12,13,14,15"       "--learning_rate=0.0001"
+prune_and_evalt_iter  $work_dir $check_dir $max_iters $fdata_dir $trainable_scopes $evalt_loss_anc    50  0.16  100 $early_skip  0  100 0   "0,1,2"               "--learning_rate=0.0001" 
+prune_and_evalt_iter  $work_dir          5 $max_iters $fdata_dir $trainable_scopes $evalt_loss_anc    50  0.16 2000     "False"  0 2000 0   "-,0,1,2"             "--learning_rate=0.0001"
+prune_and_evalt_iter  $work_dir $check_dir $max_iters $fdata_dir $trainable_scopes $evalt_loss_anc   100  0.16  100 $early_skip  0  100 0   "3,4,5,6,7,8"         "--learning_rate=0.0001"
+prune_and_evalt_iter  $work_dir          5 $max_iters $fdata_dir $trainable_scopes $evalt_loss_anc   100  0.16 2000     "False"  0 2000 0   "-,3,4,5,6,7,8"       "--learning_rate=0.0001"
 
-prune_and_evalt_iter  $work_dir $check_dir $max_iters $fdata_dir $trainable_scopes $evalt_loss_anc   100   0.8  50 $early_skip  0  100 0   "3,2,1,0"                                   "--learning_rate=0.0001" 
-prune_and_evalt_iter  $work_dir          5 $max_iters $fdata_dir $trainable_scopes $evalt_loss_anc   100   0.8  50     "False"  0 2000 0   "-,3,2,1,0"                                 "--learning_rate=0.0001"
-prune_and_evalt_iter  $work_dir $check_dir $max_iters $fdata_dir $trainable_scopes $evalt_loss_anc   100   0.8  50 $early_skip  0  100 0   "15,14,13,12,11,10,9,8,7,6,5,4,3"         "--learning_rate=0.0001"
-prune_and_evalt_iter  $work_dir          5 $max_iters $fdata_dir $trainable_scopes $evalt_loss_anc   100   0.8  50     "False"  0 2000 0   "-,15,14,13,12,11,10,9,8,7,6,5,4,3"       "--learning_rate=0.0001"
+prune_and_evalt_iter  $work_dir $check_dir $max_iters $fdata_dir $trainable_scopes $evalt_loss_anc   100   0.8  100 $early_skip  0  100 0   "3,2,1,0"             "--learning_rate=0.0001" 
+prune_and_evalt_iter  $work_dir          5 $max_iters $fdata_dir $trainable_scopes $evalt_loss_anc   100   0.8 2000     "False"  0 2000 0   "-,3,2,1,0"           "--learning_rate=0.0001"
+prune_and_evalt_iter  $work_dir $check_dir $max_iters $fdata_dir $trainable_scopes $evalt_loss_anc   100   0.8  100 $early_skip  0  100 0   "8,7,6,5,4,3"         "--learning_rate=0.0001"
+prune_and_evalt_iter  $work_dir          5 $max_iters $fdata_dir $trainable_scopes $evalt_loss_anc   100   0.8 2000     "False"  0 2000 0   "-,8,7,6,5,4,3"       "--learning_rate=0.0001"
 
-prune_and_evalt_iter  $work_dir $check_dir $max_iters $fdata_dir $trainable_scopes $evalt_loss_anc   100   0.8  50 $early_skip  0  100 0   "2,1,0"                                   "--learning_rate=0.0001" 
-prune_and_evalt_iter  $work_dir          5 $max_iters $fdata_dir $trainable_scopes $evalt_loss_anc   100   0.8  50     "False"  0 2000 0   "-,2,1,0"                                 "--learning_rate=0.0001"
-prune_and_evalt_iter  $work_dir $check_dir $max_iters $fdata_dir $trainable_scopes $evalt_loss_anc   100   0.8  50 $early_skip  0  100 0   "15,14,13,12,11,10,9,8,7,6,5,4,3"         "--learning_rate=0.0001"
-prune_and_evalt_iter  $work_dir          5 $max_iters $fdata_dir $trainable_scopes $evalt_loss_anc   100   0.8  50     "False"  0 2000 0   "-,15,14,13,12,11,10,9,8,7,6,5,4,3"       "--learning_rate=0.0001"
+prune_and_evalt_iter  $work_dir $check_dir $max_iters $fdata_dir $trainable_scopes $evalt_loss_anc   100   0.8  100 $early_skip  0  100 0   "2,1,0"               "--learning_rate=0.0001" 
+prune_and_evalt_iter  $work_dir          5 $max_iters $fdata_dir $trainable_scopes $evalt_loss_anc   100   0.8 2000     "False"  0 2000 0   "-,2,1,0"             "--learning_rate=0.0001"
+prune_and_evalt_iter  $work_dir $check_dir $max_iters $fdata_dir $trainable_scopes $evalt_loss_anc   100   0.8  100 $early_skip  0  100 0   "8,7,6,5,4,3"         "--learning_rate=0.0001"
+prune_and_evalt_iter  $work_dir          5 $max_iters $fdata_dir $trainable_scopes $evalt_loss_anc   100   0.8 2000     "False"  0 2000 0   "-,8,7,6,5,4,3"       "--learning_rate=0.0001"
 
-prune_and_evalt_iter  $work_dir $check_dir $max_iters $fdata_dir $trainable_scopes $evalt_loss_anc   100   0.8  50 $early_skip  0  100 0   "0,1,2"                                   "--learning_rate=0.0001" 
-prune_and_evalt_iter  $work_dir          5 $max_iters $fdata_dir $trainable_scopes $evalt_loss_anc   100   0.8  50     "False"  0 2000 0   "-,0,1,2"                                 "--learning_rate=0.0001"
-prune_and_evalt_iter  $work_dir $check_dir $max_iters $fdata_dir $trainable_scopes $evalt_loss_anc   100   0.8  50 $early_skip  0  100 0   "3,4,5,6,7,8,9,10,11,12,13,14,15"         "--learning_rate=0.0001"
-prune_and_evalt_iter  $work_dir          5 $max_iters $fdata_dir $trainable_scopes $evalt_loss_anc   100   0.8  50     "False"  0 2000 0   "-,3,4,5,6,7,8,9,10,11,12,13,14,15"       "--learning_rate=0.0001"
+prune_and_evalt_iter  $work_dir $check_dir $max_iters $fdata_dir $trainable_scopes $evalt_loss_anc   100   0.8  100 $early_skip  0  100 0   "0,1,2"               "--learning_rate=0.0001" 
+prune_and_evalt_iter  $work_dir          5 $max_iters $fdata_dir $trainable_scopes $evalt_loss_anc   100   0.8 2000     "False"  0 2000 0   "-,0,1,2"             "--learning_rate=0.0001"
+prune_and_evalt_iter  $work_dir $check_dir $max_iters $fdata_dir $trainable_scopes $evalt_loss_anc   100   0.8  100 $early_skip  0  100 0   "3,4,5,6,7,8"         "--learning_rate=0.0001"
+prune_and_evalt_iter  $work_dir          5 $max_iters $fdata_dir $trainable_scopes $evalt_loss_anc   100   0.8 2000     "False"  0 2000 0   "-,3,4,5,6,7,8"       "--learning_rate=0.0001"
 
-prune_and_evalt_iter  $work_dir $check_dir $max_iters $fdata_dir $trainable_scopes $evalt_loss_anc   100   0.8  50 $early_skip  0  100 0   "2,1,0"                                   "--learning_rate=0.0001" 
-prune_and_evalt_iter  $work_dir          5 $max_iters $fdata_dir $trainable_scopes $evalt_loss_anc   100   0.8  50     "False"  0 2000 0   "-,2,1,0"                                 "--learning_rate=0.0001"
-prune_and_evalt_iter  $work_dir $check_dir $max_iters $fdata_dir $trainable_scopes $evalt_loss_anc   100   0.8  50 $early_skip  0  100 0   "15,14,13,12,11,10,9,8,7,6,5,4,3"         "--learning_rate=0.0001"
-prune_and_evalt_iter  $work_dir          5 $max_iters $fdata_dir $trainable_scopes $evalt_loss_anc   100   0.8  50     "False"  0 2000 0   "-,15,14,13,12,11,10,9,8,7,6,5,4,3"       "--learning_rate=0.0001"
+prune_and_evalt_iter  $work_dir $check_dir $max_iters $fdata_dir $trainable_scopes $evalt_loss_anc   100   0.8  100 $early_skip  0  100 0   "2,1,0"               "--learning_rate=0.0001" 
+prune_and_evalt_iter  $work_dir          5 $max_iters $fdata_dir $trainable_scopes $evalt_loss_anc   100   0.8 2000     "False"  0 2000 0   "-,2,1,0"             "--learning_rate=0.0001"
+prune_and_evalt_iter  $work_dir $check_dir $max_iters $fdata_dir $trainable_scopes $evalt_loss_anc   100   0.8  100 $early_skip  0  100 0   "8,7,6,5,4,3"         "--learning_rate=0.0001"
+prune_and_evalt_iter  $work_dir          5 $max_iters $fdata_dir $trainable_scopes $evalt_loss_anc   100   0.8 2000     "False"  0 2000 0   "-,8,7,6,5,4,3"       "--learning_rate=0.0001"
 
-prune_and_evalt_iter  $work_dir $check_dir $max_iters $fdata_dir $trainable_scopes $evalt_loss_anc   100   0.8  50 $early_skip  0  100 0   "0,1,2"                                   "--learning_rate=0.0001" 
-prune_and_evalt_iter  $work_dir          5 $max_iters $fdata_dir $trainable_scopes $evalt_loss_anc   100   0.8  50     "False"  0 2000 0   "-,0,1,2"                                 "--learning_rate=0.0001"
-prune_and_evalt_iter  $work_dir $check_dir $max_iters $fdata_dir $trainable_scopes $evalt_loss_anc   100   0.8  50 $early_skip  0  100 0   "3,4,5,6,7,8,9,10,11,12,13,14,15"         "--learning_rate=0.0001"
-prune_and_evalt_iter  $work_dir          5 $max_iters $fdata_dir $trainable_scopes $evalt_loss_anc   100   0.8  50     "False"  0 2000 0   "-,3,4,5,6,7,8,9,10,11,12,13,14,15"       "--learning_rate=0.0001"
+prune_and_evalt_iter  $work_dir $check_dir $max_iters $fdata_dir $trainable_scopes $evalt_loss_anc   100   0.8  100 $early_skip  0  100 0   "0,1,2"               "--learning_rate=0.0001" 
+prune_and_evalt_iter  $work_dir          5 $max_iters $fdata_dir $trainable_scopes $evalt_loss_anc   100   0.8 2000     "False"  0 2000 0   "-,0,1,2"             "--learning_rate=0.0001"
+prune_and_evalt_iter  $work_dir $check_dir $max_iters $fdata_dir $trainable_scopes $evalt_loss_anc   100   0.8  100 $early_skip  0  100 0   "3,4,5,6,7,8"         "--learning_rate=0.0001"
+prune_and_evalt_iter  $work_dir          5 $max_iters $fdata_dir $trainable_scopes $evalt_loss_anc   100   0.8 2000     "False"  0 2000 0   "-,3,4,5,6,7,8"       "--learning_rate=0.0001"
 
 mv $work_dir/iter* $fdata_dir -vf && rm $work_dir -rvf

@@ -626,11 +626,11 @@ def get_variables_to_pruning():
 
 def main(_):
   ###add for pruning
-  if FLAGS.model_name == "lenet" :
-    gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.3)#add by lzlu  
+  if FLAGS.model_name == "vgg" :
+    gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.9)#add by lzlu  
     sessGPU = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
   else:
-    gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.9)#add by lzlu  
+    gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.3)#add by lzlu  
     sessGPU = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
   print("FLAGS.model_name:",FLAGS.model_name)
   #config = tf.ConfigProto()  
@@ -810,8 +810,8 @@ def main(_):
         var_list=variables_to_train)
 
     ###add by lzlu
-    ###variables = tf.model_variables()
-    ###slim.model_analyzer.analyze_vars(variables, print_info=True)    
+    variables = tf.model_variables()
+    slim.model_analyzer.analyze_vars(variables, print_info=True)    
     ##print("variables_to_train:",variables_to_train)
     ##print("clones_gradients_before_pruning:",clones_gradients)
     variables_to_pruning=get_variables_to_pruning()
